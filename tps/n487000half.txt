@@ -1,0 +1,1 @@
+/home/ken/Kenprgs/PROGRAMS/c/prime/xpsieve_src/tps/n487000half.txt

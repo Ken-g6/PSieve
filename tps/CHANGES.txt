@@ -1,0 +1,63 @@
+0.3.4a by Ken Brazier
+	- Minor code change to allow compilation on non-x86.  No effect on x86.
+	- Commented out qmax in tpconfig.txt
+
+0.3.4 by Ken Brazier
+	- 10-15% improvement for SSE2, for most inputs.  Otherwise drops
+		back to the older SSE2 code automatically.
+
+0.3.2 by Ken Brazier
+	- 32-bit SSE2 version
+	- Tweaks for 32-bit non-SSE2 version, such as BSFQ macro
+	- Quiet flag
+
+0.3.0 New algorithm for sieving wide n ranges based on idea by Ken Brazier.
+      The n range is traversed in steps of size m, where kmax*2^m < pmin.
+      E.g. for the current TPS project where kmax < 2^20, sieving for
+      factors p between 2^50 and 2^51 can be done in steps of size 31.
+
+
+0.2.5 Keep factors file open between writes, flush it when checkpointing.
+
+      Allow APP_BUFLEN >= 8
+
+      Main version 0.2.4
+
+
+0.2.4 Fixed a bug where nmax was not being correctly set from a multi-n file.
+
+
+0.2.3 Hint to compiler to use a conditional move to avoid a 50/50 branch in
+      the left-right powmod. Thanks to Ken Brazier for this idea.
+
+      Left-right powmod is now faster than right-left in 64-bit mode too,
+      so remove the right-left code altogether.
+
+      Allow APP_BUFLEN=7
+
+
+0.2.2 Allow the input file to be in ABCD format.
+      New tp_abcd program to convert from NewPGen to ABCD format.
+
+      Main version 0.2.3
+
+
+0.2.1 Fixed invalid header error for valid input files.
+
+      Compute 2^{-n} mod p using a left to right powmod in 32-bit mode.
+
+
+0.2.0 Added nmax option for sieving a range nmin <= n <= nmax.
+
+      Added restriction kmax < pmin.
+
+
+0.1.2 Set FPU mode in each child thread.
+
+
+0.1.1 Fixed segfault when no input file.
+
+      Use kmin <= k <= kmax instead of kmin <= k < kmax.
+
+
+0.1.0 Release for testing.

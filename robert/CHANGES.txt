@@ -1,0 +1,5 @@
+0.2  In a^2^m + (a+1)^2^m, allow a up to 2^62-2.
+     For a < 2^31 version 0.1 will use less memory and might be faster.
+
+
+0.1  Initial release for testing.

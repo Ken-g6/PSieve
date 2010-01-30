@@ -1,0 +1,2 @@
+pmin=1000000000,p=1000249857,count=12003,sum=0x00000aeb03be0959,checksum=0x00000aeb7af79c3d
+factor_count=0

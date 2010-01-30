@@ -1,0 +1,18 @@
+0.2.4 Main version 0.2.4
+
+0.2.3 Fixed a bug in the Win64 factorial sieve assembly (factorial_x86_64.S)
+
+0.2.2 Added startup check: pmax < 2^51 on x86_64, pmax < 2^62 on x86.
+
+      Compile Win64 version with -O1 to avoid possible mingw compiler bug.
+
+      Main version 0.2.3
+
+0.2.1 Main version 0.2.1
+
+0.2.0 Main version 0.2.0
+
+
+0.1.1 Added --sse2 and --no-sse2 options.
+
+0.1.0 Release for testing.
