@@ -1,3 +1,8 @@
+0.3.4	- Added BOINC code
+	- Added Riesel numbers.
+
+0.3.3b	Eliminated K*2^N+1 divisible by 3, 5, or 7, when not using a sieve file.
+
 0.3.3a	Bug workaround for 64-bit Windows *only*.
 
 0.3.3	Speed improvements for 64-bit, ~3% on Core 2, ~13% on Athlon64.

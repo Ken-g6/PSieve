@@ -17,6 +17,7 @@ fi
 if [ ! -x $1 ] ; then echo "Usage: $0 ppsieve_program" ; exit ; fi
 if [ -f ppcheck*.txt ] ; then rm ppcheck*.txt ; fi
 mv ppfactors.txt ppfactors.txt.bak
+touch ppfactors.txt
 if killall boincmgr ; then sleep 1 ; fi
 boinccmd --set_run_mode never
 # trap keyboard interrupt (control-c)

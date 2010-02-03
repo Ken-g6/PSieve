@@ -32,7 +32,7 @@
 #endif
 //#endif
 #include "main.h"
-#include "util.h"
+#include "putil.h"
 #include "app.h"
 #define INLINE static inline
 
@@ -76,6 +76,7 @@ static unsigned int nstart = 0, nstep = 0;
 static unsigned int factor_count = 0;
 static int file_format = FORMAT_ABCD;
 static int print_factors = 1;
+static int addsign = 1;
 // use_sse2: 
 // 0: Use default algorithm
 // 1: Use alternate SSE2 algorithm
@@ -97,12 +98,11 @@ static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
   pthread_mutex_lock(&factors_mutex);
 #endif
 
-  if (factors_file != NULL)
+  if (factors_file != NULL && fprintf(factors_file,"%"PRIu64" | %"PRIu64"*2^%u%+d\n",p,k,n,c) > 0)
   {
-    fprintf(factors_file,"%"PRIu64" | %"PRIu64"*2^%u%+d\n",p,k,n,c);
     if(print_factors) printf("%"PRIu64" | %"PRIu64"*2^%u%+d\n",p,k,n,c);
   }
-  else printf("UNSAVED: %"PRIu64" | %"PRIu64"*2^%u%+d\n",p,k,n,c);
+  else fprintf(stderr, "%sUNSAVED: %"PRIu64" | %"PRIu64"*2^%u%+d\n",bmprefix(),p,k,n,c);
   factor_count++;
 
 #ifdef _WIN32
@@ -143,31 +143,36 @@ static FILE* scan_input_file(const char *fn)
   FILE *file;
   uint64_t k0, k1, k, p0;
   unsigned int n0, n1, d, n;
+  int fileaddsign;
   char ch;
 
-  if ((file = fopen(fn,"r")) == NULL)
+  if ((file = bfopen(fn,"r")) == NULL)
   {
     perror(fn);
-    exit(EXIT_FAILURE);
+    bexit(EXIT_FAILURE);
   }
 
 
-  if (fscanf(file,"ABCD %"SCNu64"*2^$a+1 [%u]",
-             &k,&n) == 2)
-    file_format = FORMAT_ABCD;
-  else if (fscanf(file,"%"SCNu64":P:%*c:2:%c",&p0,&ch) == 2 && ch == '1')
+  if (fscanf(file,"ABCD %"SCNu64"*2^$a%c1 [%u]",
+             &k,&ch,&n) == 3)
   {
+    file_format = FORMAT_ABCD;
+    addsign = (ch=='+')?1:-1;
+  }
+  else if (fscanf(file,"%"SCNu64":P:%*c:2:%d",&p0,&fileaddsign) == 2 && (fileaddsign == 1 || fileaddsign == -1 || fileaddsign == 255 || fileaddsign == 257))
+  {
+    addsign = (int)((char)fileaddsign);
     file_format = FORMAT_NEWPGEN;
     if (fscanf(file," %"SCNu64" %u",&k,&n) != 2)
     {
-      fprintf(stderr,"Invalid line 2 in input file `%s'\n",fn);
-      exit(EXIT_FAILURE);
+      fprintf(stderr,"%sInvalid line 2 in input file `%s'\n",bmprefix(),fn);
+      bexit(EXIT_FAILURE);
     }
   }
   else
   {
-    fprintf(stderr,"Invalid header in input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sInvalid header in input file `%s'\n",bmprefix(),fn);
+    bexit(EXIT_FAILURE);
   }
 
   k0 = k1 = k;
@@ -199,10 +204,12 @@ static FILE* scan_input_file(const char *fn)
       if (n1 < n)
         n1 = n;
 
-      if (fscanf(file, " ABCD %"SCNu64"*2^$a+1 [%u]",
-                 &k,&n) == 2)
+      if (fscanf(file, " ABCD %"SCNu64"*2^$a%c1 [%u]",
+                 &k,&ch,&n) == 3)
       {
+#ifndef USE_BOINC
         if((((int)k)&15) == 1) printf("\rFound K=%"SCNu64"\r", k);
+#endif
         fflush(stdout);
         if (k0 > k)
           k0 = k;
@@ -236,8 +243,8 @@ static FILE* scan_input_file(const char *fn)
 
   if (ferror(file))
   {
-    fprintf(stderr,"Error reading input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sError reading input file `%s'\n",bmprefix(),fn);
+    bexit(EXIT_FAILURE);
   }
 
   rewind(file);
@@ -267,20 +274,20 @@ static void read_newpgen_file(const char *fn, FILE* file)
   //FILE *file;
   uint64_t k, p0;
   unsigned int n, line, count;
-  char ch;
+  int fileaddsign;
 
   if(file == NULL) {
-    if ((file = fopen(fn,"r")) == NULL)
+    if ((file = bfopen(fn,"r")) == NULL)
     {
       perror(fn);
-      exit(EXIT_FAILURE);
+      bexit(EXIT_FAILURE);
     }
   }
 
-  if (fscanf(file," %"SCNu64":P:%*c:2:%c",&p0,&ch) != 2 || ch != '1')
+  if (fscanf(file," %"SCNu64":P:%*c:2:%d",&p0,&fileaddsign) != 2)
   {
-    fprintf(stderr,"Invalid header in input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sInvalid header in input file `%s'\n",bmprefix(),fn);
+    bexit(EXIT_FAILURE);
   }
 
   line = 0;
@@ -290,8 +297,8 @@ static void read_newpgen_file(const char *fn, FILE* file)
     line++;
     if ((k&1) != 1)
     {
-      fprintf(stderr,"Invalid line %u in input file `%s'\n",line,fn);
-      exit(EXIT_FAILURE);
+      fprintf(stderr,"%sInvalid line %u in input file `%s'\n",bmprefix(),line,fn);
+      bexit(EXIT_FAILURE);
     }
     if (k >= kmin && k <= kmax && n >= nmin && n <= nmax)
     {
@@ -303,8 +310,8 @@ static void read_newpgen_file(const char *fn, FILE* file)
 
   if (ferror(file))
   {
-    fprintf(stderr,"Error reading input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sError reading input file `%s'\n",bmprefix(),fn);
+    bexit(EXIT_FAILURE);
   }
 
   //rewind(file);
@@ -322,17 +329,17 @@ static void read_abcd_file(const char *fn, FILE *file)
 
   if(file == NULL) {
     printf("Opening file %s\n", fn);
-    if ((file = fopen(fn,"r")) == NULL)
+    if ((file = bfopen(fn,"r")) == NULL)
     {
       perror(fn);
-      exit(EXIT_FAILURE);
+      bexit(EXIT_FAILURE);
     }
   }
-  if (fscanf(file, "ABCD %"SCNu64"*2^$a+1 [%u]",
+  if (fscanf(file, "ABCD %"SCNu64"*2^$a%*c1 [%u]",
         &k,&n) != 2)
   {
-    fprintf(stderr,"Invalid header in input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sInvalid header in input file `%s'\n",bmprefix(), fn);
+    bexit(EXIT_FAILURE);
   }
 
   count = 0;
@@ -345,7 +352,7 @@ static void read_abcd_file(const char *fn, FILE *file)
     unsigned int bm8 = (unsigned int)(1 << bit%8);
     /*if(k < kmin || k > kmax || bit < 0 || bit > (kmax-kmin)/2) {
       printf("\n\nK error: K = %"SCNu64", which is outside %"SCNu64" - %"SCNu64"\n\n\n", k, kmin, kmax);
-      exit(EXIT_FAILURE);
+      bexit(EXIT_FAILURE);
     }*/
     if(n >= nmin) bitmap[n-nmin][bo8] |= bm8;
     count++;
@@ -368,16 +375,18 @@ static void read_abcd_file(const char *fn, FILE *file)
       /*if(n > nmax) {
         printf("\n\nN error: N = %u, but nmax = %u\n\n\n", n, nmax);
         if(file == NULL) printf("\n\nError: File was closed!\n");
-        exit(EXIT_FAILURE);
+        bexit(EXIT_FAILURE);
       }*/
       if(n >= nmin && n <= nmax) bitmap[n-nmin][bo8] |= bm8;
       count++;
       while(c != '\n') c=getc(file);
     }
+#ifndef USE_BOINC
     if((((int)k)&15) == 1) printf("\rRead K=%"SCNu64"\r", k);
+#endif
     fflush(stdout);
 
-    if (fscanf(file, "ABCD %"SCNu64"*2^$a+1 [%u]",
+    if (fscanf(file, "ABCD %"SCNu64"*2^$a%*c1 [%u]",
           &k,&n) != 2) {
       break;
     }
@@ -386,7 +395,7 @@ static void read_abcd_file(const char *fn, FILE *file)
   if (ferror(file))
   {
     printf("\nError reading input file `%s'\n",fn);
-    exit(EXIT_FAILURE);
+    bexit(EXIT_FAILURE);
   }
   //printf("\n\nDone reading ABCD file!\n");
 
@@ -463,6 +472,8 @@ int app_parse_option(int opt, char *arg, const char *source)
       else if(arg[0] == 'n' || arg[0] == 'N') use_sse2 = 0;
       break;
       
+    case 'R':
+      addsign = -1;
     //case 'q':
       //print_factors = 0;
   }
@@ -479,6 +490,7 @@ void app_help(void)
   printf("-i --input=FILE    Read initial sieve from FILE\n");
   printf("-f --factors=FILE  Write factors to FILE (default `%s')\n",
          FACTORS_FILENAME_DEFAULT);
+  printf("-R --riesel        Test Riesel numbers instead of Proth numbers.\n");
   printf("-a --alt=yes|no    Force setting of alt. algorithm (64-bit/SSE2)\n");
 }
 
@@ -500,8 +512,8 @@ void app_init(void)
   print_factors = (quiet_opt)?0:1;
   if (input_filename == NULL && (kmin == 0 || kmax == 0 || nmax == 0))
   {
-    fprintf(stderr,"Please specify an input file or all of kmin, kmax, and nmax\n");
-    exit(EXIT_FAILURE);
+    bmsg("Please specify an input file or all of kmin, kmax, and nmax\n");
+    bexit(EXIT_FAILURE);
   }
 
   if (input_filename != NULL
@@ -510,20 +522,20 @@ void app_init(void)
 
   if (kmin > kmax)
   {
-    fprintf(stderr,"kmin <= kmax is required\n");
-    exit(EXIT_FAILURE);
+    bmsg("kmin <= kmax is required\n");
+    bexit(EXIT_FAILURE);
   }
 
   if (kmax >= pmin)
   {
-    fprintf(stderr,"kmax < pmin is required\n");
-    exit(EXIT_FAILURE);
+    bmsg("kmax < pmin is required\n");
+    bexit(EXIT_FAILURE);
   }
 
   if (kmax-kmin >= (UINT64_C(3)<<36))
   {
-    fprintf(stderr,"kmax-kmin < 3*2^36 is required\n");
-    exit(EXIT_FAILURE);
+    bmsg("kmax-kmin < 3*2^36 is required\n");
+    bexit(EXIT_FAILURE);
   }
 
   if (nmin == 0)
@@ -535,8 +547,8 @@ void app_init(void)
     // would also have been divisible by a smaller prime.
     nmin = 2*lg2(pmin)-lg2(kmax)-1;
 
-    //fprintf(stderr,"Please specify a value for nmin\n");
-    //exit(EXIT_FAILURE);
+    //bmsg("Please specify a value for nmin\n");
+    //bexit(EXIT_FAILURE);
   }
 
   if (nmax == 0)
@@ -544,8 +556,8 @@ void app_init(void)
 
   if (nmin > nmax)
   {
-    fprintf(stderr,"nmin <= nmax is required\n");
-    exit(EXIT_FAILURE);
+    bmsg("nmin <= nmax is required\n");
+    bexit(EXIT_FAILURE);
   }
 
   b0 = kmin/2;
@@ -635,10 +647,10 @@ void app_init(void)
 
   if (factors_filename == NULL)
     factors_filename = FACTORS_FILENAME_DEFAULT;
-  if ((factors_file = fopen(factors_filename,"a")) == NULL)
+  if ((factors_file = bfopen(factors_filename,"a")) == NULL)
   {
-    fprintf(stderr,"Cannot open factors file `%s'\n",factors_filename);
-    exit(EXIT_FAILURE);
+    fprintf(stderr,"%sCannot open factors file `%s'\n",bmprefix(),factors_filename);
+    bexit(EXIT_FAILURE);
   }
 
 #ifdef _WIN32
@@ -715,7 +727,7 @@ onemod_REDC (const uint64_t N, const uint64_t Ns)
 #ifndef NDEBUG
   if (longmod (r, 0, N) != mulmod(1, 1, N))
   {
-    fprintf (stderr, "Error, onemod_redc(%lu,%lu) = %lu\n", 1ul, N, r);
+    fprintf (stderr, "%sError, onemod_redc(%lu,%lu) = %lu\n",bmprefix(), 1ul, N, r);
     abort();
   }
 #endif
@@ -734,8 +746,8 @@ mod_REDC (const uint64_t a,
 #ifndef NDEBUG
   if (longmod (r, 0, N) != a%N)
   {
-    fprintf (stderr, "Error, redc(%lu,%lu,%lu) = %lu\n", a, N, Ns, r);
-    abort();
+    fprintf (stderr, "%sError, redc(%lu,%lu,%lu) = %lu\n",bmprefix(), a, N, Ns, r);
+    bexit(EXIT_FAILURE);
   }
 #endif
 
@@ -1165,8 +1177,10 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
   }
 
   // Use only -K.
-  for (i = 0; i < APP_BUFLEN; i++) {
-    K[i] = P[i]-K[i];
+  if(addsign == 1) {
+    for (i = 0; i < APP_BUFLEN; i++) {
+      K[i] = P[i]-K[i];
+    }
   }
   if (nstep <= 1) /* Use fast division by 2 */
   {
@@ -1179,7 +1193,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
         if (k <= kmax && (k&1)) /* unlikely if p >> kmax */
         {
           if (k >= kmin)
-            test_factor(p,k,n,(k==K[i])?-1:+1);
+            test_factor(p,k,n,addsign);
         }
       }
 
@@ -1212,7 +1226,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
       kpos >>= mpos;
 
       if (kpos <= kmax && kpos >= kmin && n+mpos <= nmax)
-        test_factor(P[i],kpos,n+mpos,+1);
+        test_factor(P[i],kpos,n+mpos,addsign);
     }
 
     if (n > nmin)
@@ -1393,7 +1407,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i],kpos,n+mpos,+1);
+              test_factor(P[i],kpos,n+mpos,addsign);
           }
         }
         n -= nstep;
@@ -1411,7 +1425,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i-APP_BUFLEN],kpos,n+mpos,+1);
+              test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
           }
         }
 #else
@@ -1442,7 +1456,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i],kpos,n+mpos,+1);
+              test_factor(P[i],kpos,n+mpos,addsign);
           }
           if ((bitsk & 0x8000)) {
             uint64_t kpos;
@@ -1452,7 +1466,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i+1],kpos,n+mpos,+1);
+              test_factor(P[i+1],kpos,n+mpos,addsign);
           }
         }
         /*n -= nstep;
@@ -1483,7 +1497,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i-APP_BUFLEN],kpos,n+mpos,+1);
+              test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
           }
           if ((bitsk & 0x8000)) {
             uint64_t kpos;
@@ -1493,7 +1507,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
             kpos >>= mpos;
 
             if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i-APP_BUFLEN+1],kpos,n+mpos,+1);
+              test_factor(P[i-APP_BUFLEN+1],kpos,n+mpos,addsign);
           }
         }*/
 #endif
@@ -1636,7 +1650,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
 
           kpos >>= mpos;
           if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i],kpos,n+mpos,+1);
+            test_factor(P[i],kpos,n+mpos,addsign);
         }
         n -= nstep;
 
@@ -1650,7 +1664,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
           mpos = __builtin_ctzll(kpos);
           kpos >>= mpos;
           if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i-APP_BUFLEN],kpos,n+mpos,+1);
+            test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
         }
 #else
 // A macro of what would go in a loop but for the unique IDs needed:
@@ -1659,7 +1673,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
           BSFQ(mpos, kpos, NUMID"K"); \
           kpos >>= mpos; \
           if (kpos <= kmax && kpos >= kmin && mpos < nstep) \
-            test_factor(P[NUM],kpos,n+mpos,+1)
+            test_factor(P[NUM],kpos,n+mpos,addsign)
 
         {
           uint64_t kpos;
@@ -1685,7 +1699,7 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
           kpos >>= mpos;
 
           if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i],kpos,n+mpos,+1);
+            test_factor(P[i],kpos,n+mpos,addsign);
 #endif
 #endif
         }

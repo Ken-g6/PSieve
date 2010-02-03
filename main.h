@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 
-#define MAX_THREADS 32  /* Excluding parent thread */
+#define MAX_THREADS 128  /* Excluding parent thread */
 
 #define BLOCKSIZE_OPT_DEFAULT 32768  /* Bytes per sieve block */
 #define BLOCKSIZE_OPT_MIN 1024
@@ -40,6 +40,11 @@
 #define REPORT_OPT_DEFAULT 60  /* seconds between status reports */
 #define CHECKPOINT_OPT_DEFAULT 300  /* seconds between checkpoints */
 
+/* BOINC-compatible functions */
+FILE* bfopen(const char *filename, const char *mode);
+void bmsg(const char *msg);
+char* bmprefix();
+void bexit(int status);
 
 extern unsigned int num_threads; /* Excluding parent thread */
 extern uint64_t pmin, pmax;

@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 
-#define APP_VERSION "0.3.3b"
+#define APP_VERSION "0.3.4"
 
 /* Number of primes to buffer between calls to app_thread_fun()
  */
@@ -37,6 +37,7 @@
   {"nmax",          required_argument, 0, 'N'}, \
   {"input",         required_argument, 0, 'i'}, \
   {"factors",       required_argument, 0, 'f'}, \
+  {"riesel",        no_argument,       0, 'R'}, \
   {"alt",           required_argument, 0, 'a'}, \
   {"sse2",          required_argument, 0, 's'},
 
