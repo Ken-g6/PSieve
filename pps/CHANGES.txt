@@ -1,3 +1,8 @@
+0.3.4b	Technical BOINC changes to make compilation easier.
+	Preeminent among these is switching off the multi-thread setup function.
+
+0.3.4a	Fixed a checkpointing bug with BOINC.
+
 0.3.4	- Added BOINC code
 	- Added Riesel numbers.
 

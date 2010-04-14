@@ -474,8 +474,10 @@ int app_parse_option(int opt, char *arg, const char *source)
       
     case 'R':
       addsign = -1;
+      break;
     //case 'q':
       //print_factors = 0;
+      //break;
   }
 
   return status;
@@ -631,6 +633,7 @@ void app_init(void)
 
   printf("nstart=%u, nstep=%u\n",nstart,nstep);
 
+  // Allocate and fill bitmap.
   if (input_filename != NULL)
   {
     bitmap = xmalloc((nmax-nmin+1)*sizeof(unsigned char *));

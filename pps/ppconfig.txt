@@ -4,21 +4,21 @@
 #
 
 # Time between checkpoints, in seconds.
-checkpoint=30
+#checkpoint=300
 
 # Time between status reports, in seconds.
-report=60
+#report=60
 
 # Process priority: idle,low,normal,none, or a number 0 (normal) to 19 (idle).
 #priority=low
 
 # Sieve block size, in bytes. Should not exceed L2 cache size.
-blocksize=512k
+#blocksize=512k
 
 # Sieve chunk size, in bytes. Smaller chunks require more communication
 # between threads but result in less time wasted when threads must
 # synchronise, e.g. for checkpoints and program termination.
-chunksize=1k
+#chunksize=8k
 
 # Sieve candidate factors using primes up to qmax. Default is sqrt(pmax).
 # For large N ranges, leave this at the default.
@@ -34,14 +34,17 @@ chunksize=1k
 #alt=Bench
 
 # Uncomment to prevent printing of factors to STDOUT
-quiet
+#quiet
+
+# Uncomment to sieve Riesel format numbers K*2^N-1
+#riesel
 
 # Example arguments for BOINC client:
-pmin=42070e9
-pmax=42070050e6
+#pmin=42070e9
+#pmax=42070050e6
 # And either...
-kmin=1201
-kmax=9999
-nmax=2000000
+#kmin=1201
+#kmax=9999
+#nmax=2000000
 # Or...
 #input=ppse_37TE1.txt

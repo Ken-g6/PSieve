@@ -20,11 +20,11 @@
 
 #define MAX_THREADS 128  /* Excluding parent thread */
 
-#define BLOCKSIZE_OPT_DEFAULT 32768  /* Bytes per sieve block */
+#define BLOCKSIZE_OPT_DEFAULT 524288  /* Bytes per sieve block */
 #define BLOCKSIZE_OPT_MIN 1024
 #define BLOCKSIZE_OPT_MAX (1<<27)  /* 128Mb = 2^30 bits */
 
-#define CHUNKSIZE_OPT_DEFAULT 128  /* Bytes per sieve chunk */
+#define CHUNKSIZE_OPT_DEFAULT 8192  /* Bytes per sieve chunk */
 #define CHUNKSIZE_OPT_MIN 16
 #define CHUNKSIZE_OPT_MAX (1<<17)  /* 128Kb = 2^20 bits */
 
@@ -37,7 +37,11 @@
 #define PMAX_MAX (UINT64_C(1)<<62)
 #define QMAX_MAX (1U<<31)
 
+#ifdef USE_BOINC
+#define REPORT_OPT_DEFAULT 1  /* seconds between status reports */
+#else
 #define REPORT_OPT_DEFAULT 60  /* seconds between status reports */
+#endif
 #define CHECKPOINT_OPT_DEFAULT 300  /* seconds between checkpoints */
 
 /* BOINC-compatible functions */

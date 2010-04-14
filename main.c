@@ -45,11 +45,7 @@
 
 #ifdef USE_BOINC
 #ifdef _WIN32                //  Stuff we only need on Windows: 
-#include "boinc_win.h"
-#include "util.h"            // parse_command_line(), boinc_sleep()
-#include "str_util.h"        // for parse_command_line()
-#endif
-#ifdef MSVC
+#include "BOINC/boinc_win.h"
 #define getThreadPriority() GetThreadPriority(GetCurrentThread())
 #define setThreadPriority(num) SetThreadPriority(GetCurrentThread(), num)
 #else
@@ -59,9 +55,9 @@
 
 /* BOINC API */
 
-#include "boinc_api.h"
-#include "diagnostics.h"     // boinc_init_diagnostics()
-#include "filesys.h"         // boinc_fopen(), etc...
+#include "BOINC/boinc_api.h"
+#include "BOINC/diagnostics.h"     // boinc_init_diagnostics()
+#include "BOINC/filesys.h"         // boinc_fopen(), etc...
 #endif
 
 /* Global variables
@@ -308,7 +304,7 @@ static void write_checkpoint(uint64_t p)
   unsigned int i;
   uint64_t count, sum, checksum;
 
-  if ((fout = bfopen(checkpoint_filename,"w")) != NULL)
+  if ((fout = fopen(checkpoint_filename,"w")) != NULL)
   {
     for (i = 0, count = cand_count, sum = cand_sum; i < num_threads; i++)
     {
@@ -337,9 +333,9 @@ static uint64_t read_checkpoint(void)
   FILE *fin;
   int valid;
 
-  if ((fin = bfopen(cpf,"r")) == NULL) {
+  if ((fin = fopen(cpf,"r")) == NULL) {
 #ifdef OLD_CHECKPOINT_FILENAME
-    if ((fin = bfopen(OLD_CHECKPOINT_FILENAME,"r")) == NULL)
+    if ((fin = fopen(OLD_CHECKPOINT_FILENAME,"r")) == NULL)
 #endif
       return pmin;
 #ifdef OLD_CHECKPOINT_FILENAME
@@ -832,7 +828,7 @@ int main(int argc, char *argv[])
       BOINC_DIAG_DUMPCALLSTACKENABLED| 
       BOINC_DIAG_TRACETOSTDERR);
 
-  boincordie(boinc_init_parallel(), "BOINC initialization failed!\n");
+  boincordie(boinc_init(), "BOINC initialization failed!\n");
 #endif
   program_start_time = elapsed_usec();
   app_banner();

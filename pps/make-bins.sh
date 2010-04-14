@@ -2,7 +2,7 @@ appname=ppsieve
 cleanvars="-fomit-frame-pointer -s"
 # To build the BOINC Linux 64 version, get and make BOINC from subversion.  Place its directory location below.
 #BOINC_DIR=/downloads/distributed/boinc610/server_stable
-BOINC_DIR=../../ppsb/boinc
+#BOINC_DIR=../../ppsb/boinc
 BOINC_API_DIR=$BOINC_DIR/api
 BOINC_LIB_DIR=$BOINC_DIR/lib
 arch=`uname -m`
@@ -20,12 +20,12 @@ fi
 # 32-bit Linux (BOINC or non-BOINC)
 if [ "$kernel" != "" ] ; then export LD_ASSUME_KERNEL=$kernel ; fi
 if [ "$1" != "boinc" ] ; then
-gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=pentium3 -I. -I.. -o $appname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
-gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-x86-linux-sse2 ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=pentium3 -I. -I.. -o $appname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-x86-linux-sse2 ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
 else
 	if [ "$arch" == "i686" ] ; then
 		echo Making i686 BOINC version.
-		gcc -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-boinc-x86-linux-sse2 $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -g -DAPP_GRAPHICS
+		gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-boinc-x86-linux-sse2 $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -DAPP_GRAPHICS
 	fi
 fi
 if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi
@@ -39,11 +39,11 @@ fi
 # 64-bit Linux (BOINC or non-BOINC)
 if [ "$kernel" != "" ] ; then export LD_ASSUME_KERNEL=$kernel ; fi
 if [ "$1" != "boinc" ] ; then
-gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread
 else
 	if [ "$arch" == "x86_64" ] ; then
 		echo Making x86_64 BOINC version.
-		gcc -Wall -O3 -DNDEBUG -D_REENTRANT -DUSE_BOINC -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-boinc-x86_64-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -g -DAPP_GRAPHICS
+		gcc $cleanvars -Wall -O3 -DNDEBUG -D_REENTRANT -DUSE_BOINC -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-boinc-x86_64-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c -lm -lpthread -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -DAPP_GRAPHICS
 	fi
 fi
 if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi
