@@ -53,6 +53,6 @@ void bexit(int status);
 extern unsigned int num_threads; /* Excluding parent thread */
 extern uint64_t pmin, pmax;
 extern unsigned int quiet_opt;
-
+//extern int single_thread;	/* Flag for non-threaded operation */
 
 #endif /* _MAIN_H */

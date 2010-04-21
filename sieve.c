@@ -1057,9 +1057,9 @@ uint64_t next_chunk(sieve_t *sv)
 }
 
 #if TRACE
-uint64_t get_chunk(int th, sieve_t *sv, unsigned long **bitmap)
+uint64_t get_chunk(int th, sieve_t *sv, unsigned long **bitmap, int single_thread)
 #else
-uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap)
+uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
 #endif
 {
   uint64_t base;
@@ -1081,13 +1081,13 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap)
  start:
   if (sv->all_done == 0)
   {
-    if (sv->sieve_done || sv->free_blocks == 0 ||
+    if (sv->sieve_done || sv->free_blocks == 0 || (single_thread == 0 && 
 #ifdef _WIN32
         !TryEnterCriticalSection(&sv->mutexB)
 #else
         pthread_mutex_trylock(&sv->mutexB)
 #endif
-        )
+	))
     {
       /* Either no more sieving is required, there are no free blocks, or
          another thread is sieving already */
@@ -1278,6 +1278,9 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap)
   LeaveCriticalSection(&sv->mutexA);
 #else
   pthread_mutex_unlock(&sv->mutexA);
+#endif
+#if TRACE
+  printf("Thread %d: left get_chunk()\n",th);
 #endif
 
   return base;

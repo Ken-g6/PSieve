@@ -65,6 +65,7 @@
 unsigned int num_threads = 1;
 uint64_t pmin = 0, pmax = 0;
 unsigned int quiet_opt = 0;
+int single_thread = 0;
 
 /* Local variables */
 static uint64_t pstart;
@@ -702,9 +703,9 @@ static void *thread_fun(void *arg)
     unsigned int i;
 
 #if TRACE
-    if ((p0 = get_chunk(th,sv,&buf)) >= pmax)
+    if ((p0 = get_chunk(th,sv,&buf,single_thread)) >= pmax)
 #else
-    if ((p0 = get_chunk(sv,&buf)) >= pmax)
+    if ((p0 = get_chunk(sv,&buf,single_thread)) >= pmax)
 #endif
       break;
 
@@ -924,7 +925,11 @@ int main(int argc, char *argv[])
          _beginthreadex(NULL,0,thread_fun_wrapper,(void *)th,0,NULL)) == 0)
     {
       perror("_beginthreadex");
-      boinc_finish(EXIT_FAILURE);
+      bmsg("Will proceed with a single thread.  There will be *no checkpoints*!\n");
+      single_thread = 1;
+      thread_fun((void *)0);
+      break;
+      //boinc_finish(EXIT_FAILURE);
     }
 #else
   pthread_mutex_lock(&exiting_mutex);
@@ -934,7 +939,11 @@ int main(int argc, char *argv[])
     if (pthread_create(&tid[thl],NULL,thread_fun,(void *)thl) != 0)
     {
       perror("pthread_create");
-      boinc_finish(EXIT_FAILURE);
+      bmsg("Will proceed with a single thread.  There will be *no checkpoints*!\n");
+      single_thread = 1;
+      thread_fun((void *)0);
+      break;
+      //boinc_finish(EXIT_FAILURE);
     }
   }
 #endif
@@ -946,161 +955,162 @@ int main(int argc, char *argv[])
   last_report_processor_cycles = processor_cycles();
   last_report_progress = pstart;
 
-  while (!stopping)
-  {
-    uint64_t current_time, processor_time, cycles, progress;
-    uint64_t next_checkpoint_time, next_report_time, timeout;
-
-    current_time = elapsed_usec();
-    processor_time = processor_usec();
-    cycles = processor_cycles();
-
-    next_report_time = last_report_time + report_period;
-    if (current_time >= next_report_time)
+  if(!single_thread) {
+    while (!stopping)
     {
-      progress = next_chunk(sv);
-      report_status(current_time,processor_time,cycles,progress);
-      last_report_time = current_time;
-      next_report_time = current_time + report_period;
-      last_report_processor_time = processor_time;
-      last_report_processor_cycles = cycles;
-      last_report_progress = progress;
-    }
+      uint64_t current_time, processor_time, cycles, progress;
+      uint64_t next_checkpoint_time, next_report_time, timeout;
 
-    if (checkpoint_opt)
-    {
-      next_checkpoint_time = last_checkpoint_time + checkpoint_period;
-      if (current_time >= next_checkpoint_time && !no_more_checkpoints)
+      current_time = elapsed_usec();
+      processor_time = processor_usec();
+      cycles = processor_cycles();
+
+      next_report_time = last_report_time + report_period;
+      if (current_time >= next_report_time)
       {
-#if TRACE
-        printf("Main: checkpointing\n");
-#endif
-        checkpointing = 1;
-#ifdef _WIN32
-        for (th = 0; th < num_threads; th++)
-          WaitForSingleObject(checkpoint_semaphoreA,INFINITE);
-#else
-        for (th = 0; th < num_threads; th++)
-          sem_wait(&checkpoint_semaphoreA);
-#endif
         progress = next_chunk(sv);
-        if(boinc_time_to_checkpoint()) {
-          write_checkpoint(progress);
-          last_checkpoint_progress = progress;
-          boinc_checkpoint_completed();
-        }
-        last_checkpoint_time = current_time;
-        next_checkpoint_time = current_time + checkpoint_period;
-        checkpointing = 0;
-#if TRACE
-        printf("Main: finished checkpointing\n");
-#endif
-#ifdef _WIN32
-        ReleaseSemaphore(checkpoint_semaphoreB,num_threads,NULL);
-#else
-        for (th = 0; th < num_threads; th++)
-          sem_post(&checkpoint_semaphoreB);
-#endif
+        report_status(current_time,processor_time,cycles,progress);
+        last_report_time = current_time;
+        next_report_time = current_time + report_period;
+        last_report_processor_time = processor_time;
+        last_report_processor_cycles = cycles;
+        last_report_progress = progress;
       }
-    }
 
-    if (checkpoint_opt && next_checkpoint_time < next_report_time)
-      timeout = next_checkpoint_time;
-    else
-      timeout = next_report_time;
-
-    /* Wait until timeout, or some child thread exits. */
-#ifdef _WIN32
-    DWORD timeout_interval = (DWORD)(timeout - current_time+999)/1000;
-    /* Wait for any thread */
-    if (WaitForMultipleObjects(num_threads,tid,0,timeout_interval)
-        == WAIT_OBJECT_0)
-    {
-      /* Find which thread exited */
-      for (th = 0; th < num_threads; th++)
-        if (WaitForSingleObject(tid[th],0) == WAIT_OBJECT_0)
+      if (checkpoint_opt)
+      {
+        next_checkpoint_time = last_checkpoint_time + checkpoint_period;
+        if (current_time >= next_checkpoint_time && !no_more_checkpoints)
         {
-          /* If this thread failed, stop the others too. */
-          if (GetExitCodeThread(tid[th],&thread_ret) && thread_ret != 0)
-            stopping = 1;
-          break;
+#if TRACE
+          printf("Main: checkpointing\n");
+#endif
+          checkpointing = 1;
+#ifdef _WIN32
+          for (th = 0; th < num_threads; th++)
+            WaitForSingleObject(checkpoint_semaphoreA,INFINITE);
+#else
+          for (th = 0; th < num_threads; th++)
+            sem_wait(&checkpoint_semaphoreA);
+#endif
+          progress = next_chunk(sv);
+          if(boinc_time_to_checkpoint()) {
+            write_checkpoint(progress);
+            last_checkpoint_progress = progress;
+            boinc_checkpoint_completed();
+          }
+          last_checkpoint_time = current_time;
+          next_checkpoint_time = current_time + checkpoint_period;
+          checkpointing = 0;
+#if TRACE
+          printf("Main: finished checkpointing\n");
+#endif
+#ifdef _WIN32
+          ReleaseSemaphore(checkpoint_semaphoreB,num_threads,NULL);
+#else
+          for (th = 0; th < num_threads; th++)
+            sem_post(&checkpoint_semaphoreB);
+#endif
         }
-      break;
-    }
+      }
+
+      if (checkpoint_opt && next_checkpoint_time < next_report_time)
+        timeout = next_checkpoint_time;
+      else
+        timeout = next_report_time;
+
+      /* Wait until timeout, or some child thread exits. */
+#ifdef _WIN32
+      DWORD timeout_interval = (DWORD)(timeout - current_time+999)/1000;
+      /* Wait for any thread */
+      if (WaitForMultipleObjects(num_threads,tid,0,timeout_interval)
+          == WAIT_OBJECT_0)
+      {
+        /* Find which thread exited */
+        for (th = 0; th < num_threads; th++)
+          if (WaitForSingleObject(tid[th],0) == WAIT_OBJECT_0)
+          {
+            /* If this thread failed, stop the others too. */
+            if (GetExitCodeThread(tid[th],&thread_ret) && thread_ret != 0)
+              stopping = 1;
+            break;
+          }
+        break;
+      }
 #else
-    struct timespec wait_timespec;
-    wait_timespec.tv_sec = timeout/1000000;
-    wait_timespec.tv_nsec = (timeout%1000000)*1000;
-    if (pthread_cond_timedwait(&exiting_cond,&exiting_mutex,&wait_timespec)==0)
-      break;
+      struct timespec wait_timespec;
+      wait_timespec.tv_sec = timeout/1000000;
+      wait_timespec.tv_nsec = (timeout%1000000)*1000;
+      if (pthread_cond_timedwait(&exiting_cond,&exiting_mutex,&wait_timespec)==0)
+        break;
 #endif
-  }
+    }
 
-  /* Restore signal handlers in case some thread fails to join below. */
-  fini_signals();
+    /* Restore signal handlers in case some thread fails to join below. */
+    fini_signals();
 
-  fprintf(stderr,"\n%sWaiting for threads to exit", bmprefix());
+    fprintf(stderr,"\n%sWaiting for threads to exit", bmprefix());
 
 #ifdef _WIN32
-  /* Wait for all threads, then examine return values and close. */
-  WaitForMultipleObjects(num_threads,tid,1,INFINITE);
-  for (th = 0; th < num_threads; th++)
-  {
-    if (GetExitCodeThread(tid[th],&thread_ret) && thread_ret != 0)
+    /* Wait for all threads, then examine return values and close. */
+    WaitForMultipleObjects(num_threads,tid,1,INFINITE);
+    for (th = 0; th < num_threads; th++)
     {
-      fprintf(stderr,"%sThread %d failed: %lX\n", bmprefix(),th,thread_ret);
-      process_ret = EXIT_FAILURE;
+      if (GetExitCodeThread(tid[th],&thread_ret) && thread_ret != 0)
+      {
+        fprintf(stderr,"%sThread %d failed: %lX\n", bmprefix(),th,thread_ret);
+        process_ret = EXIT_FAILURE;
+      }
+      CloseHandle(tid[th]);
     }
-    CloseHandle(tid[th]);
-  }
 #else
-  pthread_mutex_unlock(&exiting_mutex);
-  /* Find an exiting thread, if there is one (there might not be if the loop
-     above was exited because of a signal that set the stopping flag) */
-  joined = num_threads;
-  for (th = 0; th < num_threads; th++)
-  {
-    if (thread_data[th].exiting)
+    pthread_mutex_unlock(&exiting_mutex);
+    /* Find an exiting thread, if there is one (there might not be if the loop
+       above was exited because of a signal that set the stopping flag) */
+    joined = num_threads;
+    for (th = 0; th < num_threads; th++)
     {
-      pthread_join(tid[th],&thread_ret);
-      if (thread_ret != 0)
+      if (thread_data[th].exiting)
       {
-        /* This thread exited with an error, so stop the others too */
-        fprintf(stderr,"%sThread %d failed: %p\n", bmprefix(),th,thread_ret);
-        process_ret = EXIT_FAILURE;
-        stopping = 1;
+        pthread_join(tid[th],&thread_ret);
+        if (thread_ret != 0)
+        {
+          /* This thread exited with an error, so stop the others too */
+          fprintf(stderr,"%sThread %d failed: %p\n", bmprefix(),th,thread_ret);
+          process_ret = EXIT_FAILURE;
+          stopping = 1;
+        }
+        joined = th; /* Note which thread was joined. */
+        break;
       }
-      joined = th; /* Note which thread was joined. */
-      break;
     }
-  }
 
-  /* Join any remaining threads. If joined < num_threads then skip the
-     thread that was already joined above. */
-  for (th = 0; th < num_threads; th++)
-  {
-    if (th != joined)
+    /* Join any remaining threads. If joined < num_threads then skip the
+       thread that was already joined above. */
+    for (th = 0; th < num_threads; th++)
     {
-      pthread_join(tid[th],&thread_ret);
-      if (thread_ret != 0)
+      if (th != joined)
       {
-        fprintf(stderr,"%sThread %d failed: %p\n", bmprefix(),th,thread_ret);
-        process_ret = EXIT_FAILURE;
+        pthread_join(tid[th],&thread_ret);
+        if (thread_ret != 0)
+        {
+          fprintf(stderr,"%sThread %d failed: %p\n", bmprefix(),th,thread_ret);
+          process_ret = EXIT_FAILURE;
+        }
       }
     }
-  }
 #endif
 
 #ifdef _WIN32
-  CloseHandle(checkpoint_semaphoreA);
-  CloseHandle(checkpoint_semaphoreB);
+    CloseHandle(checkpoint_semaphoreA);
+    CloseHandle(checkpoint_semaphoreB);
 #else
-  pthread_cond_destroy(&exiting_cond);
-  pthread_mutex_destroy(&exiting_mutex);
-  sem_destroy(&checkpoint_semaphoreA);
-  sem_destroy(&checkpoint_semaphoreB);
+    pthread_cond_destroy(&exiting_cond);
+    pthread_mutex_destroy(&exiting_mutex);
+    sem_destroy(&checkpoint_semaphoreA);
+    sem_destroy(&checkpoint_semaphoreB);
 #endif
-
+  }
   if (process_ret == EXIT_SUCCESS)
   {
     pstop = next_chunk(sv);

@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 
-#define APP_VERSION "0.3.4b"
+#define APP_VERSION "0.3.5"
 
 /* Number of primes to buffer between calls to app_thread_fun()
  */
@@ -52,5 +52,6 @@ void app_thread_fini(int th);
 int app_read_checkpoint(FILE *f);
 void app_write_checkpoint(FILE *f);
 void app_fini(void);
+void test_factor(uint64_t p, uint64_t k, unsigned int n, int c);
 
 #endif /* _APP_H */

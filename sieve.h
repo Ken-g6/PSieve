@@ -120,10 +120,10 @@ void destroy_sieve(sieve_t *sv);
 
 /* Get/free a chunk of candidates */
 #if TRACE
-uint64_t get_chunk(int th, sieve_t *sv, unsigned long **chunk);
+uint64_t get_chunk(int th, sieve_t *sv, unsigned long **chunk, int single_thread);
 void free_chunk(int th,sieve_t *sv, uint64_t chunk);
 #else
-uint64_t get_chunk(sieve_t *sv, unsigned long **chunk);
+uint64_t get_chunk(sieve_t *sv, unsigned long **chunk, int single_thread);
 void free_chunk(sieve_t *sv, uint64_t chunk);
 #endif
 

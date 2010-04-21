@@ -9,9 +9,8 @@ if [ $# = 0 ] ; then echo "Usage: $0 ppsieve_program [args]" ; exit ; fi
 if [ "$1" = "all" ] ; then
 	sh many_n_test.sh ppsieve-x86_64-linux $2 $3 -s yes
 	sh many_n_test.sh ppsieve-x86_64-linux $2 $3 -s no
-	sh many_n_test.sh ppsieve-x86-linux-sse2 $2 $3
-	sh many_n_test.sh ppsieve-x86-linux-sse2 $2 $3 -s no
 	sh many_n_test.sh ppsieve-x86-linux $2 $3
+	sh many_n_test.sh ppsieve-x86-linux $2 $3 -s no
 	exit
 fi
 if [ ! -x $1 ] ; then echo "Usage: $0 ppsieve_program" ; exit ; fi
