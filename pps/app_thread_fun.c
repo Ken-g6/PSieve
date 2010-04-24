@@ -24,10 +24,11 @@
 #endif
 //#ifndef __x86_64__  // Comment this to do benchmarking in 64-bit.
 #ifdef __SSE2__
-#include "app_thread_fun_sse2.h"
 #ifdef __x86_64__
 #include <time.h>
+#include "app_thread_fun_x64.h"
 #else
+#include "app_thread_fun_sse2.h"
 #define EMM
 #include <emmintrin.h>
 #endif
@@ -141,10 +142,14 @@ mod_REDC (const uint64_t a,
    P is an array of APP_BUFLEN candidate primes.
    nstart is passed in as "n".
 */
+#ifdef __x86_64__
+void app_thread_fun_x64(int th, uint64_t *__attribute__((aligned(16))) P, const uint64_t kmin, const uint64_t kmax, const int addsign, const unsigned int nmin, const unsigned int nmax, unsigned int n, const unsigned int nstep, const int sse2_in_range, const uint64_t ld_r0, const int ld_bbits)  /* x64 only */
+#else
 #ifdef __SSE2__
 void app_thread_fun_sse2(int th, uint64_t *__attribute__((aligned(16))) P, const uint64_t kmin, const uint64_t kmax, const int addsign, const unsigned int nmin, const unsigned int nmax, unsigned int n, const unsigned int nstep, const int sse2_in_range, const uint64_t *xkmax)  /* SSE2 only */
 #else
 void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, const uint64_t kmin, const uint64_t kmax, const int addsign, const unsigned int nmin, const unsigned int nmax, unsigned int n, const unsigned int nstep)
+#endif
 #endif
 {
   uint64_t K[APP_BUFLEN*2] __attribute__((aligned(16)));
@@ -152,18 +157,11 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
 #if (APP_BUFLEN >= 7)
   long double INV[APP_BUFLEN-6];
 #endif
-#if defined(__SSE2__) && (!defined(__x86_64__) || defined(_WIN32))
+#if defined(__SSE2__) && (!defined(__x86_64__)) // || defined(_WIN32)
   static const uint64_t xones[2] __attribute__((aligned(16))) = {1ul, 1ul};
   __m128i mones = _mm_load_si128((__m128i*)xones);
 #endif
-#ifdef __x86_64__
-  uint64_t x;
-#ifndef _WIN32
-  unsigned int nbits, t;
-#endif
-#else
   unsigned int x;
-#endif
   unsigned int i;
 
 #if (APP_BUFLEN <= 6)
@@ -201,35 +199,21 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
 #endif
 #endif
 
-#if defined(__x86_64__) && !defined(_WIN32)
-  nbits = 31 - __builtin_clz(n);
-  // Get the first 6 bits of b==t.  (Requires b >= 128.)
-  t = 64-(n >> (nbits-5));
-  nbits -= 6;
-
-  // We assume that P[0] is the smallest of the N's.
-  x = P[0];
-  // if t is very small, one might be able to do the first mulmod here.
-  if(t < 32) {
-    // Square, but don't do the Montgomery step yet.
-    x = 1ul << (t+t);
-    // Call this case x*(x/2).  Still no Montgomery step yet.
-    if(n & (1ul<<nbits)) x >>= 1;
-  }
-  if(x < P[0]) {
-    // Work through the first 7 bits of b with Montgomery math.
-    nbits--;
+#if defined(__x86_64__) //&& !defined(_WIN32)
+  // If the init said Montgomery math was OK, do it:
+  if(ld_r0) {
+    // Work through the first 6 bits of b with Montgomery math.
+    // If ld_r0 is small (and it should be at least <= 32), there's a very good chance no mod is needed!
     for(i=0; i < APP_BUFLEN; i+=2) {
+      // First, calculate the Montgomery inverses of P[i] and P[i+1].
       register uint64_t r1, r2;
       register unsigned int in1 = (unsigned int)P[i], in2 = (unsigned int) P[i+1];
-
-      //fprintf(stderr, "CASE 1\n");
 
       /* Suggestion from PLM: initing the inverse to (3*n) XOR 2 gives the
          correct inverse modulo 32, then 3 (for 32 bit) or 4 (for 64 bit) 
          Newton iterations are enough. */
-      r1 = (3UL * P[i]) ^ 2UL;
-      r2 = (3UL * P[i+1]) ^ 2UL;
+      r1 = (((uint64_t)3) * P[i]) ^ ((uint64_t)2);
+      r2 = (((uint64_t)3) * P[i+1]) ^ ((uint64_t)2);
       /* Newton iteration */
       r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
       r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
@@ -239,68 +223,17 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
       r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
       r1 += r1 - r1 * r1 * P[i];
       r2 += r2 - r2 * r2 * P[i+1];
-      // Here we do the Montgomery step, then leave Montgomery math with another.
-      K[i] = mod_REDC(mod_REDC(x, P[i], -r1), P[i], -r1);
-      K[i+1] = mod_REDC(mod_REDC(x, P[i+1], -r2), P[i+1], -r2);
+      // ld_r0 is precalculated as 2^-(1st 6 bits) * 2^64.
+      // Use montgomery math to calculate 2^-(1st 6 bits) mod P, for both P's.
+      // *** Doesn't work if P < 2^32!!!! ***
+      K[i] = mod_REDC(ld_r0, P[i], -r1);
+      K[i+1] = mod_REDC(ld_r0, P[i+1], -r2);
     }
+    x = 1U << (ld_bbits+1);
   } else {
-    // Work through the first 6 bits of b with Montgomery math.
-    // This is 2^-(6 bits of n) * 2^64
-    x = 1ul << t;
-    // If i is small (and it should be at least <= 32), there's a very good chance no mod is needed!
-    if(x >= P[0]) {
-      // Mod required - Montgomery math can't handle numbers >= P.
-      for(i=0; i < APP_BUFLEN; i+=2) {
-        register uint64_t r1, r2;
-        register unsigned int in1 = (unsigned int)P[i], in2 = (unsigned int) P[i+1];
-
-        /* Suggestion from PLM: initing the inverse to (3*n) XOR 2 gives the
-           correct inverse modulo 32, then 3 (for 32 bit) or 4 (for 64 bit) 
-           Newton iterations are enough. */
-        r1 = (3UL * P[i]) ^ 2UL;
-        r2 = (3UL * P[i+1]) ^ 2UL;
-        /* Newton iteration */
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - r1 * r1 * P[i];
-        r2 += r2 - r2 * r2 * P[i+1];
-        x = 1ul << t;
-        x %= P[i];
-        K[i] = mod_REDC(x, P[i], -r1);
-        x = 1ul << t;
-        x %= P[i+1];
-        K[i+1] = mod_REDC(x, P[i+1], -r2);
-      }
-    } else {
-      // No mod required.
-      for(i=0; i < APP_BUFLEN; i+=2) {
-        register uint64_t r1, r2;
-        register unsigned int in1 = (unsigned int)P[i], in2 = (unsigned int) P[i+1];
-
-        /* Suggestion from PLM: initing the inverse to (3*n) XOR 2 gives the
-           correct inverse modulo 32, then 3 (for 32 bit) or 4 (for 64 bit) 
-           Newton iterations are enough. */
-        r1 = (3UL * P[i]) ^ 2UL;
-        r2 = (3UL * P[i+1]) ^ 2UL;
-        /* Newton iteration */
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - (unsigned int) r1 * (unsigned int) r1 * in1;
-        r2 += r2 - (unsigned int) r2 * (unsigned int) r2 * in2;
-        r1 += r1 - r1 * r1 * P[i];
-        r2 += r2 - r2 * r2 * P[i+1];
-        K[i] = mod_REDC(x, P[i], -r1);
-        K[i+1] = mod_REDC(x, P[i+1], -r2);
-      }
-    }
+    // Just initialize it straight up.
+    x = 1U << (31 - __builtin_clz(n));
   }
-  x = 1ul << (nbits+1);
 #else
 #ifdef __SSE2__
   x = 1U << (30 - __builtin_clz(n));

@@ -1279,9 +1279,6 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
 #else
   pthread_mutex_unlock(&sv->mutexA);
 #endif
-#if TRACE
-  printf("Thread %d: left get_chunk()\n",th);
-#endif
 
   return base;
 }

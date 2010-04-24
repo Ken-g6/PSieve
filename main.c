@@ -246,7 +246,7 @@ static void report_status(uint64_t now, uint64_t processor_time,
 {
   double done;
 #ifndef USE_BOINC
-  double rate, cpus, freq, done_eta;
+  double rate, cpus, done_eta;
   const char *unit;
   int prec;
   char buf[32];
@@ -276,8 +276,6 @@ static void report_status(uint64_t now, uint64_t processor_time,
     prec = 0;
 
   cpus = (double)(processor_time-last_report_processor_time)/(now-last_report_time);
-
-  freq = (double)(cycles-last_report_processor_cycles)/(now-last_report_time);
 
   done_eta = (double)(progress-pstart)/(pmax-pstart);
 

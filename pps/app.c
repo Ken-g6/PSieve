@@ -34,8 +34,12 @@
 #include "main.h"
 #include "putil.h"
 #include "app.h"
+#ifdef __x86_64__
+#include "app_thread_fun_x64.h"
+#else
 #include "app_thread_fun_nosse2.h"
 #include "app_thread_fun_sse2.h"
+#endif
 #define INLINE static inline
 
 #define FORMAT_NEWPGEN 1
@@ -58,6 +62,13 @@ static unsigned int factor_count = 0;
 static int file_format = FORMAT_ABCD;
 static int print_factors = 1;
 static int addsign = 1;
+
+#ifdef __x86_64__
+// Montgomery constants:
+static uint64_t ld_r0;
+static int ld_bbits;
+#endif
+
 // use_sse2: 
 // 0: Use default algorithm
 // 1: Use alternate SSE2 algorithm
@@ -628,6 +639,22 @@ void app_init(void)
 
   printf("nstart=%u, nstep=%u\n",nstart,nstep);
 
+#ifdef __x86_64__
+  // Prepare Montgomery constants:
+  ld_r0 = 0;  // Default, turns off Montgomery math.
+  ld_bbits = lg2(nstart);
+  //assert(d_r0 <= 32);
+  if(ld_bbits >= 6) {
+    // r = 2^-i * 2^64 (mod N), something that can be done in a uint64_t!
+    // If i is large (and it should be at least >= 32), there's a very good chance no mod is needed!
+    ld_r0 = ((uint64_t)1) << (64-(nstart >> (ld_bbits-5)));
+    ld_bbits = ld_bbits-6;
+
+    // If P is too small, a mod would be needed, so abort Montgomery math.
+    if(ld_r0 >= pmin) ld_r0 = 0;
+  }
+#endif
+
   // Allocate and fill bitmap.
   if (input_filename != NULL)
   {
@@ -684,7 +711,7 @@ void app_thread_init(int th)
 void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
 {
 #ifdef __x86_64__
-  app_thread_fun_sse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, xkmax);
+  app_thread_fun_x64(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, ld_r0, ld_bbits);
 #else
   if(has_sse2)  app_thread_fun_sse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, xkmax);
   else app_thread_fun_nosse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep);
