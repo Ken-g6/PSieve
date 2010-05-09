@@ -21,6 +21,7 @@
 /* Number of primes to buffer between calls to app_thread_fun()
  */
 #define APP_BUFLEN 6
+#define MIN_MULMOD_NSTEP 2
 
 #define CHECKPOINT_FILENAME "ppcheck%s.txt"
 #define OLD_CHECKPOINT_FILENAME "ppcheckpoint.txt"

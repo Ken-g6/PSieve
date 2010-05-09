@@ -1,5 +1,6 @@
 appname=ppsieve
-cleanvars="-fomit-frame-pointer -s -static-libgcc -static"
+cleanvars="-s -static-libgcc -static"
+gcc_is_new=`gcc --version | grep " 4\.[3-9]" | wc -l`
 # To build the BOINC Linux 64 version, get and make BOINC from subversion.  Place its directory location below.
 # Or get boinc-dev from synaptic and comment out any BOINC_DIR lines.
 BOINC_DIR=/downloads/distributed/boinc610/server_stable
@@ -20,8 +21,16 @@ fi
 
 # 32-bit Linux (BOINC or non-BOINC)
 if [ "$kernel" != "" ] ; then export LD_ASSUME_KERNEL=$kernel ; fi
-gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun.c
-gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun.c
+if [ "$gcc_is_new" == "1" ] ; then
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -S -o app_thread_fun_sse2.S app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -S -o app_thread_fun_nosse2.S app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun.c
+else
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun_sse2.S
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun_nosse2.S
+fi
+
 if [ "$1" != "boinc" ] ; then
 	echo Making i686 non-BOINC version.
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=core2 -I. -I.. -o $appname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm -lpthread

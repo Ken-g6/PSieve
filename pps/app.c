@@ -123,7 +123,7 @@ void test_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 {
   uint64_t b = k/2;
 
-  if((k & 1) && n >= nmin) { // k is odd.
+  if((k & 1) && n >= nmin && n < nmax && k >= kmin) { // k is odd.
     if (bitmap == NULL) {
       // Check that K*2^N+/-1 is not divisible by 3, 5, or 7, to minimize factors printed.
       // We do 3 and 5 at the same time (15 = 2^4-1), then 7 (=2^3-1).
@@ -632,7 +632,8 @@ void app_init(void)
   if (nstep > (nmax-nmin+1))
     nstep = (nmax-nmin+1);
 
-  if (nstep <= 1)
+  // Select starting point depending on which algorithm will be used.
+  if (nstep <= MIN_MULMOD_NSTEP)
     nstart = nmin;
   else
     nstart = nmin + (((nmax-nmin)/nstep)*nstep);

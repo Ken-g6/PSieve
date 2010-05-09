@@ -1,3 +1,6 @@
+0.3.6	Faster processing for very low P, ~2-3Kmax.
+	Also made .S files to compile on an older Linux.
+
 0.3.5	- 32-bit version now detects SSE2 and runs appropriate code.
 	- In case of threading errors (e.g. Win98), now runs as a single thread.
 

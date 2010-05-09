@@ -163,6 +163,7 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
 #endif
   unsigned int x;
   unsigned int i;
+  unsigned int nstart = n;
 
 #if (APP_BUFLEN <= 6)
   for (i = 0; i < APP_BUFLEN; i++)
@@ -498,30 +499,166 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
       K[i] = P[i]-K[i];
     }
   }
-  if (nstep <= 1) /* Use fast division by 2 */
+  if (nstep <= MIN_MULMOD_NSTEP) /* Use fast division by 2 */
   {
-    while (1)
-    {
-      for (i = 0; i < APP_BUFLEN; i++)
+    /* Check all N's */
+# ifdef __x86_64__
+    if(sse2_in_range) {
+      for (i = 0; i < APP_BUFLEN; i+=2)
       {
-        uint64_t k = K[i], p = P[i];
+        // Load K and P only once each.
+        // Do two at a time for software pipelining.
+        uint64_t k0 = K[i], p0 = P[i];
+        uint64_t k1 = K[i+1], p1 = P[i+1];
+        n = nstart;
 
-        if (k <= kmax && (k&1)) /* unlikely if p >> kmax */
+        // Proceed with the rest.
+        while (1)
         {
-          if (k >= kmin)
-            test_factor(p,k,n,addsign);
+          if (k0 <= kmax && k0 >= kmin) /* unlikely if p >> kmax */
+            test_factor(p0, k0, n, addsign);
+          if (k1 <= kmax && k1 >= kmin) /* unlikely if p >> kmax */
+            test_factor(p1, k1, n, addsign);
+
+          if (++n > nmax)
+            break;
+
+          // A pipelined CMOV.
+          k0 += (k0 % 2)?p0:0;
+          k1 += (k1 % 2)?p1:0;
+          k0 /= 2;
+          k1 /= 2;
         }
       }
-
-      if (++n > nmax)
-        break;
-
-      for (i = 0; i < APP_BUFLEN; i++)
+    } else {
+      for (i = 0; i < APP_BUFLEN; i+=2)
       {
-        K[i] += (K[i] % 2)? P[i] : 0; /* Unpredictable */
-        K[i] /= 2;
+        // Load K and P only once each.
+        // Do two at a time for software pipelining.
+        uint64_t k0 = K[i], p0 = P[i];
+        uint64_t k1 = K[i+1], p1 = P[i+1];
+        unsigned int n1;
+        n = nstart;
+        n1 = nstart;
+
+        // Proceed with the rest.
+        while (1)
+        {
+          {
+            unsigned int m0, m1;
+            m0 = __builtin_ctzll(k0);
+            m1 = __builtin_ctzll(k1);
+            k0 >>= m0;
+            n += m0;
+            k1 >>= m1;
+            n1 += m1;
+          }
+          if (k0 <= kmax && k0 >= kmin) /* unlikely if p >> kmax */
+            test_factor(p0, k0, n, addsign);
+          if (k1 <= kmax && k1 >= kmin) /* unlikely if p >> kmax */
+            test_factor(p1, k1, n1, addsign);
+
+          if (++n > nmax || ++n1 > nmax)
+            break;
+
+          // A pipelined CMOV.
+          k0 += p0;
+          k1 += p1;
+          k0 /= 2;
+          k1 /= 2;
+        }
+
+        // Finish up the straggler.
+        if(n1 < n) {
+          k0 = k1;
+          p0 = p1;
+          n = n1;
+        }
+        while (n <= nmax)
+        {
+          k0 += (k0 % 2)?p0:0;
+          k0 /= 2;
+          if (k0 <= kmax && k0 >= kmin) /* unlikely if p >> kmax */
+            test_factor(p0, k0, n, addsign);
+
+          ++n;
+        }
       }
     }
+# else
+#ifdef __SSE2__
+    __m128i mkmax = _mm_load_si128((__m128i*)xkmax);
+    for (i = 0; i < APP_BUFLEN; i+=2)
+    {
+      unsigned int bits;
+      n = nstart;
+      // Load K and P only once each,
+      // except in case of a factor.
+      // Do two at a time with SSE2
+      __m128i mp = _mm_load_si128((__m128i*)&P[i]);
+      __m128i mk = _mm_load_si128((__m128i*)&K[i]);
+      // Precompute for every P:
+      //__m128i mpmkmax = _mm_sub_epi64(mp, mkmax);
+      __m128i mtemp;
+
+      while (1)
+      {
+        // Check: (mk <= kmax || mp-mk <= kmax) - unlikely if p >> kmax
+        // We check mk-mkmax < 0 || ((mp-mk)-mkmax == (mp-mkmax)-mk) < 0
+        // mkmax = kmax + 1, so this works like the <= above.
+        mtemp = _mm_sub_epi64(mk, mkmax);
+        //mtemp2 = _mm_sub_epi64(mpmkmax, mk);
+        //mtemp = _mm_or_si128(mtemp, mtemp2);
+        // Now get the sign bits.
+        bits = _mm_movemask_epi8(mtemp);
+        // The ones we care about are bits 7 and 15.
+        if(bits & 0x8080) {
+          // Move the K's back to memory for further work.
+          _mm_store_si128 ((__m128i*)&K[i], mk);
+
+          //if (k0 <= kmax || p0-k0 <= kmax) /* unlikely if p >> kmax */
+          if(bits & 0x80)
+            test_factor(P[i], K[i], n, addsign);
+          //if (k1 <= kmax || p1-k1 <= kmax) /* unlikely if p >> kmax */
+          if(bits & 0x8000)
+            test_factor(P[i+1], K[i+1], n, addsign);
+        }
+
+        if (++n > nmax)
+          break;
+
+        // Now do an SSE2 CMOV-like bit trick.
+        //k0 += (k0 % 2)?p0:0;
+        mtemp = _mm_and_si128(mk, mones);		// (mk % 2)
+        mtemp = _mm_sub_epi64(mtemp, mones);	// 1 goes to 0; 0 goes to FFFFFFFFFFFFFFFF.
+        mtemp = _mm_andnot_si128(mtemp, mp);	// mp if mk%2 == 1; 0 if mk%2 == 0.
+        mk = _mm_add_epi64(mk, mtemp);		// mk += the result.
+        //k0 /= 2;
+        mk = _mm_srli_epi64(mk, 1);
+      }
+    }
+#else	// 32-bit, no SSE2
+    for (i = 0; i < APP_BUFLEN; i++)
+    {
+      n = nstart;
+      // Load K only once each.
+      // Only one at a time, due to register pressure.
+      uint64_t k0 = K[i];
+      while (1)
+      {
+        if (k0 <= kmax && k0 >= kmin) // unlikely if p >> kmax
+          test_factor(P[i], k0, n, addsign);
+
+        if (++n > nmax)
+          break;
+
+        // Another CMOV.
+        k0 += (((unsigned int)k0)&1)?P[i]:0;
+        k0 /= 2;
+      }
+    }
+#endif	// SSE2
+#endif	// x86_64
   }
   else /* nstep > 1, use multiplication by 2^{nstep} */
   {
