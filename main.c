@@ -126,13 +126,6 @@ static sem_t checkpoint_semaphoreA;
 static sem_t checkpoint_semaphoreB;
 #endif
 
-#ifndef _GNU_SOURCE
-static int asprintf(char **out, const char *fmt, const char *str) {
-  *out = xmalloc(strlen(fmt)+strlen(str)-1);
-  return sprintf(*out, fmt, str);
-}
-#endif
-
 static void handle_signal(int signum)
 {
   switch (signum)
@@ -416,7 +409,7 @@ static int parse_option(int opt, char *arg, const char *source)
   switch (opt)
   {
     case 'p':
-      pmin_str = arg;
+      astrcpy(&pmin_str, arg);
       status = parse_uint64(&pmin,arg,3,PMAX_MAX-1);
       break;
 
@@ -859,6 +852,7 @@ int main(int argc, char *argv[])
   }
   if(pmin_str == NULL) pmin_str = empty_string;
   asprintf(&checkpoint_filename, CHECKPOINT_FILENAME, pmin_str);
+  free(pmin_str);
 
   checkpoint_period = (uint64_t)checkpoint_opt * 1000000; /* usec */
   report_period = (uint64_t)report_opt * 1000000; /* usec */
