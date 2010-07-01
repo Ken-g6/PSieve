@@ -55,9 +55,15 @@
 
 /* BOINC API */
 
+#ifdef __APPLE__
+#include "boinc_api.h"
+#include "diagnostics.h"
+#include "filesys.h"
+#else
 #include "BOINC/boinc_api.h"
 #include "BOINC/diagnostics.h"     // boinc_init_diagnostics()
 #include "BOINC/filesys.h"         // boinc_fopen(), etc...
+#endif
 #endif
 
 /* Global variables
