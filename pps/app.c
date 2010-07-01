@@ -82,6 +82,14 @@ static pthread_mutex_t factors_mutex;
 #endif
 
 
+#ifdef __APPLE__
+#include "stdbool.h"
+static int check_sse2(void) {
+  return true;
+}
+
+#else
+
 #define cpuid(func,ax,bx,cx,dx)\
 	__asm__ __volatile__ ("cpuid":\
 	"=a" (ax), "=b" (bx), "=c" (cx), "=d" (dx) : "a" (func));
@@ -92,6 +100,7 @@ static int check_sse2(void) {
   cpuid(1,a,b,c,d);
   return((d>>26)&1);
 }
+#endif
 
 static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 {
@@ -715,8 +724,12 @@ void app_thread_fun(int th, uint64_t *__attribute__((aligned(16))) P)
 #ifdef __x86_64__
   app_thread_fun_x64(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, ld_r0, ld_bbits);
 #else
+#ifdef __APPLE__
+  app_thread_fun_sse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, xkmax);
+#else
   if(has_sse2)  app_thread_fun_sse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep, sse2_in_range, xkmax);
   else app_thread_fun_nosse2(th, P, kmin, kmax, addsign, nmin, nmax, nstart, nstep);
+#endif
 #endif
 }
 
