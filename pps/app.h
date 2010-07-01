@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 
-#define APP_VERSION "0.3.6"
+#define APP_VERSION "0.3.6a"
 
 /* Number of primes to buffer between calls to app_thread_fun()
  */
