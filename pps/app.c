@@ -608,7 +608,8 @@ void app_init(void)
 
       start = clock();
 
-      for(i=0; i < 500000000; ++i) {
+      // Increased 5% to favor alternate algorithm.
+      for(i=0; i < 525000000; ++i) {
         c += __builtin_ctzll((uint64_t)i);
       }
 
