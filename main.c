@@ -2,17 +2,17 @@
 /* main.c -- (C) Geoffrey Reynolds, March 2009.
  * and some  (C) Ken Brazier, October 2009.
 
-   Multithreaded sieve application for algorithms of the form:
+ Multithreaded sieve application for algorithms of the form:
 
-   For each prime p in 3 <= p0 <= p < p1 < 2^62
-     Do something with p
+ For each prime p in 3 <= p0 <= p < p1 < 2^62
+ Do something with p
 
 
-   This program is free software; you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
-   (at your option) any later version.
-*/
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ */
 
 #include <assert.h>
 #include <stdio.h>
@@ -27,10 +27,14 @@
 
 #ifdef _WIN32
 #include <windows.h>
+//#ifndef USE_BOINC
 #include <process.h>
+//#endif
 #else
+#ifndef USE_BOINC
 #include <pthread.h>
 #include <semaphore.h>
+#endif
 #include <unistd.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -46,11 +50,6 @@
 #ifdef USE_BOINC
 #ifdef _WIN32                //  Stuff we only need on Windows: 
 #include "BOINC/boinc_win.h"
-#define getThreadPriority() GetThreadPriority(GetCurrentThread())
-#define setThreadPriority(num) SetThreadPriority(GetCurrentThread(), num)
-#else
-#define getThreadPriority() getpriority(PRIO_PROCESS, 0)
-#define setThreadPriority(num) nice(num)
 #endif
 
 /* BOINC API */
@@ -67,7 +66,7 @@
 #endif
 
 /* Global variables
- */
+*/
 unsigned int num_threads = 1;
 uint64_t pmin = 0, pmax = 0;
 unsigned int quiet_opt = 0;
@@ -109,7 +108,7 @@ static volatile char stopping = 0;
 
 
 /* Per-thread local variables
- */
+*/
 
 typedef struct {
   uint64_t count;
@@ -121,7 +120,8 @@ static thread_data_t thread_data[MAX_THREADS];
 
 
 /* Thread shared variables
- */
+*/
+#ifndef USE_BOINC
 #ifdef _WIN32
 static HANDLE checkpoint_semaphoreA;
 static HANDLE checkpoint_semaphoreB;
@@ -131,26 +131,28 @@ static pthread_cond_t exiting_cond;
 static sem_t checkpoint_semaphoreA;
 static sem_t checkpoint_semaphoreB;
 #endif
+#endif
+
+static int got_sigint = 0, got_sigterm=0;
+static void (*old_sigint_handler)(int);
+static void (*old_sigterm_handler)(int);
+#ifdef SIGHUP
+static void (*old_sighup_handler)(int);
+static int got_sighup=0;
+#endif
 
 static void handle_signal(int signum)
 {
   switch (signum)
   {
-    case SIGINT:
-    case SIGTERM:
+    case SIGINT: got_sigint = 1;
+    case SIGTERM: got_sigterm = 1;
 #ifdef SIGHUP
-    case SIGHUP:
+    case SIGHUP: got_sighup = 1;
 #endif
-      stopping = 1;
-      break;
   }
+  stopping = 1;
 }
-
-static void (*old_sigint_handler)(int);
-static void (*old_sigterm_handler)(int);
-#ifdef SIGHUP
-static void (*old_sighup_handler)(int);
-#endif
 
 static void init_signals(void)
 {
@@ -241,7 +243,7 @@ void bexit(int status) {
 
 #define STRFTIME_FORMAT "ETA %d %b %H:%M"
 static void report_status(uint64_t now, uint64_t processor_time,
-                          uint64_t cycles, uint64_t progress)
+    uint64_t cycles, uint64_t progress)
 {
   double done;
 #ifndef USE_BOINC
@@ -254,7 +256,7 @@ static void report_status(uint64_t now, uint64_t processor_time,
   done = (double)(progress-pmin)/(pmax-pmin);
 #ifdef USE_BOINC
   boinc_fraction_done(done);
-//#endif
+  //printf("p=%"PRIu64", %.1f%% done.\n", progress,100.0*done);
 #else
   rate = (double)(progress-last_report_progress)/(now-last_report_time);
   unit = "M";
@@ -288,7 +290,7 @@ static void report_status(uint64_t now, uint64_t processor_time,
       buf[0] = '\0';
   }
   printf("p=%"PRIu64", %.*f%s p/sec, %.2f CPU cores, %.1f%% done. %s  ",
-         progress,prec,rate,unit,cpus,100.0*done, buf);
+      progress,prec,rate,unit,cpus,100.0*done, buf);
   if(quiet_opt) { 
     putchar('\r');
     fflush(stdout);
@@ -312,8 +314,8 @@ static void write_checkpoint(uint64_t p)
 
     checksum = pmin + p + count + sum;
     fprintf(fout,"pmin=%"PRIu64",p=%"PRIu64
-            ",count=%"PRIu64",sum=0x%016"PRIx64",checksum=0x%016"PRIx64"\n",
-            pmin,p,count,sum,checksum);
+        ",count=%"PRIu64",sum=0x%016"PRIx64",checksum=0x%016"PRIx64"\n",
+        pmin,p,count,sum,checksum);
 
     app_write_checkpoint(fout);
     fclose(fout);
@@ -323,7 +325,7 @@ static void write_checkpoint(uint64_t p)
 /* Try to read the checkpoint file and return the starting point. If the
    file cannot be read or the starting point p is not in pmin <= p < pmax,
    then return pmin.
-*/ 
+   */ 
 static uint64_t read_checkpoint(void)
 {
   uint64_t p0, p, count, sum, checksum;
@@ -344,8 +346,8 @@ static uint64_t read_checkpoint(void)
 
   valid = 0;
   if (fscanf(fin,"pmin=%"SCNu64",p=%"SCNu64
-             ",count=%"SCNu64",sum=0x%"SCNx64",checksum=0x%"SCNx64"\n",
-             &p0,&p,&count,&sum,&checksum) == 5)
+        ",count=%"SCNu64",sum=0x%"SCNx64",checksum=0x%"SCNx64"\n",
+        &p0,&p,&count,&sum,&checksum) == 5)
     if (p0 == pmin && p > pmin && p < pmax)
       valid = app_read_checkpoint(fin);
 
@@ -354,7 +356,7 @@ static uint64_t read_checkpoint(void)
   if (valid && p0 + p + count + sum == checksum)
   {
     fprintf(stderr,"%sResuming from checkpoint p=%"PRIu64" in %s\n",
-            bmprefix(), p, cpf);
+        bmprefix(), p, cpf);
     cand_count = count;
     cand_sum = sum;
     return p;
@@ -367,7 +369,11 @@ static uint64_t read_checkpoint(void)
 }
 
 
+#ifdef USE_BOINC
+static const char *short_opts = "p:P:Q:B:C:c:r:z:h" APP_SHORT_OPTS;
+#else
 static const char *short_opts = "p:P:Q:B:C:c:r:t:z:h" APP_SHORT_OPTS;
+#endif
 
 static const struct option long_opts[] = {
   {"pmin",        required_argument, 0, 'p'},
@@ -378,7 +384,9 @@ static const struct option long_opts[] = {
   {"blocks",      required_argument, 0, 256},
   {"checkpoint",  required_argument, 0, 'c'},
   {"report",      required_argument, 0, 'r'},
+#ifndef USE_BOINC
   {"nthreads",    required_argument, 0, 't'},
+#endif
   {"priority",    required_argument, 0, 'z'},
   {"help",        no_argument,       0, 'h'},
   {"quiet",       no_argument,       0, 'q'},
@@ -392,16 +400,18 @@ static void help(void)
   printf("-P --pmax=P1       Sieve end: p < P1 <= 2^62 (default P1=P0+10^9)\n");
   printf("-Q --qmax=Q1       Sieve only with odd primes q < Q1 <= 2^31\n");
   printf("-B --blocksize=N   Sieve in blocks of N bytes (default N=%d)\n",
-         BLOCKSIZE_OPT_DEFAULT);
+      BLOCKSIZE_OPT_DEFAULT);
   printf("-C --chunksize=N   Process blocks in chunks of N bytes (default N=%d)\n", CHUNKSIZE_OPT_DEFAULT);
   printf("   --blocks=N      Sieve up to N blocks ahead (default N=%d)\n",
-         BLOCKS_OPT_DEFAULT);
+      BLOCKS_OPT_DEFAULT);
   printf("-c --checkpoint=N  Checkpoint every N seconds (default N=%d)\n",
-         CHECKPOINT_OPT_DEFAULT);
+      CHECKPOINT_OPT_DEFAULT);
   printf("-q --quiet         Don't print factors to screen\n");
   printf("-r --report=N      Report status every N seconds (default N=%d)\n",
-         REPORT_OPT_DEFAULT);
+      REPORT_OPT_DEFAULT);
+#ifndef USE_BOINC
   printf("-t --nthreads=N    Start N child threads (default N=1)\n");
+#endif
   printf("-z --priority=N    Set process priority to nice N or {idle,low,normal}\n");
   printf("-h --help          Print this help\n");
 }
@@ -447,9 +457,11 @@ static int parse_option(int opt, char *arg, const char *source)
       status = parse_uint(&report_opt,arg,0,UINT32_MAX);
       break;
 
+#ifndef USE_BOINC
     case 't':
       status = parse_uint(&num_threads,arg,1,MAX_THREADS);
       break;
+#endif
 
     case 'z':
       if (strcmp(arg,"idle") == 0)
@@ -488,7 +500,7 @@ static int parse_option(int opt, char *arg, const char *source)
 /* Process command-line options using getopt_long().
    Non-option arguments are treated as if they belong to option zero.
    Returns the number of options processed.
- */
+   */
 static int process_args(int argc, char *argv[])
 {
   int count = 0, ind = -1, opt;
@@ -505,20 +517,20 @@ static int process_args(int argc, char *argv[])
         /* If ind is unchanged then this is a short option, otherwise long. */
         if (ind == -1)
           fprintf(stderr,"%s%s: invalid argument -%c %s\n", bmprefix(),
-                  argv[0],opt,optarg);
+              argv[0],opt,optarg);
         else
           fprintf(stderr,"%s%s: invalid argument --%s %s\n", bmprefix(),
-                  argv[0],long_opts[ind].name,optarg);
+              argv[0],long_opts[ind].name,optarg);
         boinc_finish(EXIT_FAILURE);
 
       case -2:
         /* If ind is unchanged then this is a short option, otherwise long. */
         if (ind == -1)
           fprintf(stderr,"%s%s: out of range argument -%c %s\n", bmprefix(),
-                  argv[0],opt,optarg);
+              argv[0],opt,optarg);
         else
           fprintf(stderr,"%s%s: out of range argument --%s %s\n", bmprefix(),
-                  argv[0],long_opts[ind].name,optarg);
+              argv[0],long_opts[ind].name,optarg);
         boinc_finish(EXIT_FAILURE);
 
       default:
@@ -535,12 +547,12 @@ static int process_args(int argc, char *argv[])
 
       case -1:
         fprintf(stderr,"%s%s: invalid non-option argument %s\n", bmprefix(),
-                  argv[0],argv[optind]);
+            argv[0],argv[optind]);
         boinc_finish(EXIT_FAILURE);
 
       case -2:
         fprintf(stderr,"%s%s: out of range non-option argument %s\n", bmprefix(),
-                  argv[0],argv[optind]);
+            argv[0],argv[optind]);
         boinc_finish(EXIT_FAILURE);
 
       default:
@@ -559,7 +571,7 @@ static int process_args(int argc, char *argv[])
 
 /* Read and parse options from configuration file fn.
    Returns the number of options read, or zero if the file cannot be opened.
-*/
+   */
 static int read_config_file(const char *fn)
 {
   const char comment_character = '#';
@@ -635,11 +647,12 @@ static int read_config_file(const char *fn)
 }
 
 
+#ifndef USE_BOINC
 #ifndef _WIN32
 /* Child thread cleanup handler signals parent before child thread exits.
    This is needed because the pthreads API lacks the equivalent of a select
    function to wait (with timeout) for one of a number of threads to exit.
-*/
+   */
 static void thread_cleanup(void *arg)
 {
   int th = (int)((long)arg);
@@ -654,6 +667,7 @@ static void thread_cleanup(void *arg)
   pthread_mutex_unlock(&exiting_mutex);
 }
 #endif
+#endif
 
 static void *thread_fun(void *arg)
 {
@@ -662,11 +676,14 @@ static void *thread_fun(void *arg)
   uint64_t P[APP_BUFLEN] __attribute__ ((aligned(16)));
   unsigned int plen, len;
   unsigned long *buf;
+#ifdef USE_BOINC
+  uint64_t progress;
+#endif
 
   assert(((unsigned int)&P & 15) == 0); /* check stack alignment */
 
-#ifdef _WIN32
 #ifndef USE_BOINC
+#ifdef _WIN32
   if (priority_opt)
   {
     if (priority_opt > 14)
@@ -676,15 +693,9 @@ static void *thread_fun(void *arg)
     else
       SetThreadPriority(GetCurrentThread(),THREAD_PRIORITY_NORMAL);
   }
-#endif
-#endif
-
-#ifndef _WIN32
+#else
   pthread_cleanup_push(thread_cleanup,arg);
 #endif
-
-#ifdef USE_BOINC
-  if(setThreadPriority(priority_opt) < 0) bmsg("Warning: setThreadPriority failed.\n");
 #endif
 
   fprintf(stderr,"%sThread %d starting\n", bmprefix(),th);
@@ -738,7 +749,14 @@ static void *thread_fun(void *arg)
     free_chunk(sv,p0);
 #endif
 
+#ifdef USE_BOINC
+    /* Without threads, report status at the end of every chunk. */
+    progress = next_chunk(sv);
+    report_status(0,0,0,progress);
+    if(boinc_time_to_checkpoint())
+#else
     if (checkpointing)
+#endif
     {
       app_thread_fun1(th,P,plen), plen = 0;
       thread_data[th].count = count;
@@ -746,12 +764,19 @@ static void *thread_fun(void *arg)
 #ifdef TRACE
       printf("Thread %d: Synchronising for checkpoint\n",th);
 #endif
+#ifdef USE_BOINC
+      /* Without threads, write a checkpoint whenever done with a chunk and BOINC is ready. */
+      write_checkpoint(progress);
+      last_checkpoint_progress = progress;
+      boinc_checkpoint_completed();
+#else
 #ifdef _WIN32
       ReleaseSemaphore(checkpoint_semaphoreA,1,NULL);
       WaitForSingleObject(checkpoint_semaphoreB,INFINITE);
 #else
       sem_post(&checkpoint_semaphoreA);
       sem_wait(&checkpoint_semaphoreB);
+#endif
 #endif
 #ifdef TRACE
       printf("Thread %d: Continuing after checkpoint\n",th);
@@ -771,6 +796,7 @@ static void *thread_fun(void *arg)
 
   /* Just in case a checkpoint is signalled before other threads exit */
   no_more_checkpoints = 1;
+#ifndef USE_BOINC
 #ifdef _WIN32
   ReleaseSemaphore(checkpoint_semaphoreA,1,NULL);
 #else
@@ -780,24 +806,26 @@ static void *thread_fun(void *arg)
 #ifndef _WIN32
   pthread_cleanup_pop(1);
 #endif
+#endif
 
   return 0;
 }
 
+#ifndef USE_BOINC
 #ifdef _WIN32
 static unsigned int __stdcall thread_fun_wrapper(void *arg)
 {
 #ifdef __i386__
   /* _beginthreadex doesn't align the stack */
   asm ("push %%ebp\n\t"
-       "mov %%esp, %%ebp\n\t"
-       "and $-16, %%esp\n\t"
-       "sub $12, %%esp\n\t"
-       "push %0\n\t"
-       "call _thread_fun\n\t"
-       "mov %%ebp, %%esp\n\t"
-       "pop %%ebp"
-       : "+a" (arg) : "i" (thread_fun) : "%edx", "%ecx", "cc");
+      "mov %%esp, %%ebp\n\t"
+      "and $-16, %%esp\n\t"
+      "sub $12, %%esp\n\t"
+      "push %0\n\t"
+      "call _thread_fun\n\t"
+      "mov %%ebp, %%esp\n\t"
+      "pop %%ebp"
+      : "+a" (arg) : "i" (thread_fun) : "%edx", "%ecx", "cc");
 
   return (unsigned int)arg;
 #else
@@ -805,10 +833,12 @@ static unsigned int __stdcall thread_fun_wrapper(void *arg)
 #endif
 }
 #endif
+#endif
 
 
 int main(int argc, char *argv[])
 {
+#ifndef USE_BOINC
 #ifdef _WIN32
   HANDLE tid[MAX_THREADS];
   DWORD thread_ret;
@@ -816,6 +846,7 @@ int main(int argc, char *argv[])
   pthread_t tid[MAX_THREADS];
   void *thread_ret;
   int joined;
+#endif
 #endif
   uint64_t pstop;
   int th, process_ret = EXIT_SUCCESS;
@@ -833,11 +864,6 @@ int main(int argc, char *argv[])
 
   read_config_file(CONFIG_FILENAME);
   process_args(argc,argv);
-#ifdef USE_BOINC
-  // Get the priority.
-  priority_opt = getThreadPriority();
-  //printf("Got priority %d.\n", priority_opt);
-#endif
 
   if (pmin < PMIN_MIN)
     pmin = PMIN_MIN;
@@ -902,6 +928,7 @@ int main(int argc, char *argv[])
 
   init_signals();
 
+#ifndef USE_BOINC
 #ifdef _WIN32
   checkpoint_semaphoreA = CreateSemaphore(NULL,0,2147483647,NULL);
   checkpoint_semaphoreB = CreateSemaphore(NULL,0,2147483647,NULL);
@@ -911,16 +938,28 @@ int main(int argc, char *argv[])
   sem_init(&checkpoint_semaphoreA,0,0);
   sem_init(&checkpoint_semaphoreB,0,0);
 #endif
+#endif
 
   sieve_start_date = time(NULL);
   sieve_start_time = elapsed_usec();
   sieve_start_processor_time = processor_usec();
 
   /* Start child threads */
+#ifdef USE_BOINC
+  single_thread = 1;
+  last_checkpoint_time = sieve_start_time;
+  last_checkpoint_progress = pstart;
+  last_report_time = sieve_start_time;
+  last_report_processor_time = sieve_start_processor_time;
+  last_report_processor_cycles = processor_cycles();
+  last_report_progress = pstart;
+  thread_fun((void *)0);
+  fini_signals();
+#else
 #ifdef _WIN32
   for (th = 0; th < num_threads; th++)
     if ((tid[th] = (HANDLE)
-         _beginthreadex(NULL,0,thread_fun_wrapper,(void *)th,0,NULL)) == 0)
+          _beginthreadex(NULL,0,thread_fun_wrapper,(void *)th,0,NULL)) == 0)
     {
       perror("_beginthreadex");
       bmsg("Will proceed with a single thread.  There will be *no checkpoints*!\n");
@@ -932,17 +971,17 @@ int main(int argc, char *argv[])
 #else
   pthread_mutex_lock(&exiting_mutex);
   {
-  long thl;
-  for (thl = 0; thl < num_threads; thl++)
-    if (pthread_create(&tid[thl],NULL,thread_fun,(void *)thl) != 0)
-    {
-      perror("pthread_create");
-      bmsg("Will proceed with a single thread.  There will be *no checkpoints*!\n");
-      single_thread = 1;
-      thread_fun((void *)0);
-      break;
-      //boinc_finish(EXIT_FAILURE);
-    }
+    long thl;
+    for (thl = 0; thl < num_threads; thl++)
+      if (pthread_create(&tid[thl],NULL,thread_fun,(void *)thl) != 0)
+      {
+        perror("pthread_create");
+        bmsg("Will proceed with a single thread.  There will be *no checkpoints*!\n");
+        single_thread = 1;
+        thread_fun((void *)0);
+        break;
+        //boinc_finish(EXIT_FAILURE);
+      }
   }
 #endif
 
@@ -1047,7 +1086,7 @@ int main(int argc, char *argv[])
     /* Restore signal handlers in case some thread fails to join below. */
     fini_signals();
 
-    fprintf(stderr,"\n%sWaiting for threads to exit", bmprefix());
+    fprintf(stderr,"\n%sWaiting for threads to exit\n", bmprefix());
 
 #ifdef _WIN32
     /* Wait for all threads, then examine return values and close. */
@@ -1097,7 +1136,6 @@ int main(int argc, char *argv[])
         }
       }
     }
-#endif
 
 #ifdef _WIN32
     CloseHandle(checkpoint_semaphoreA);
@@ -1108,7 +1146,9 @@ int main(int argc, char *argv[])
     sem_destroy(&checkpoint_semaphoreA);
     sem_destroy(&checkpoint_semaphoreB);
 #endif
+#endif
   }
+#endif
   if (process_ret == EXIT_SUCCESS)
   {
     pstop = next_chunk(sv);
@@ -1126,7 +1166,7 @@ int main(int argc, char *argv[])
   }
   else
   {
-   fprintf(stderr,"\n%sSieve incomplete: %"PRIu64" <= p < %"PRIu64"\n", bmprefix(),pmin,pstop);
+    fprintf(stderr,"\n%sSieve incomplete: %"PRIu64" <= p < %"PRIu64"\n", bmprefix(),pmin,pstop);
   }
 
   app_fini();
@@ -1149,24 +1189,29 @@ int main(int argc, char *argv[])
   uint64_t stop_time = elapsed_usec();
   uint64_t stop_processor_time = processor_usec();
   fprintf(stderr,"%sElapsed time: %.2f sec. (%.2f init + %.2f sieve)"
-          " at %.0f p/sec.\n", bmprefix(),
-          (stop_time-program_start_time)/1000000.0,
-          (sieve_start_time-program_start_time)/1000000.0,
-          (stop_time-sieve_start_time)/1000000.0,
-          (double)(pstop-pstart)/(stop_time-sieve_start_time)*1000000);
+      " at %.0f p/sec.\n", bmprefix(),
+      (stop_time-program_start_time)/1000000.0,
+      (sieve_start_time-program_start_time)/1000000.0,
+      (stop_time-sieve_start_time)/1000000.0,
+      (double)(pstop-pstart)/(stop_time-sieve_start_time)*1000000);
   fprintf(stderr,"%sProcessor time: %.2f sec. (%.2f init + %.2f sieve)"
-          " at %.0f p/sec.\n", bmprefix(),
-          (stop_processor_time)/1000000.0,
-          (sieve_start_processor_time)/1000000.0,
-          (stop_processor_time-sieve_start_processor_time)/1000000.0,
-          (double)(pstop-pstart)/(stop_processor_time-sieve_start_processor_time)*1000000);
+      " at %.0f p/sec.\n", bmprefix(),
+      (stop_processor_time)/1000000.0,
+      (sieve_start_processor_time)/1000000.0,
+      (stop_processor_time-sieve_start_processor_time)/1000000.0,
+      (double)(pstop-pstart)/(stop_processor_time-sieve_start_processor_time)*1000000);
   fprintf(stderr,"%sAverage processor utilization: %.2f (init), %.2f (sieve)\n",
-          bmprefix(),
-          (double)(sieve_start_processor_time)
-          /(sieve_start_time-program_start_time),
-          (double)(stop_processor_time-sieve_start_processor_time)
-          /(stop_time-sieve_start_time));
+      bmprefix(),
+      (double)(sieve_start_processor_time)
+      /(sieve_start_time-program_start_time),
+      (double)(stop_processor_time-sieve_start_processor_time)
+      /(stop_time-sieve_start_time));
 
+  if(got_sigint) raise(SIGINT);
+  if(got_sigterm) raise(SIGTERM);
+#ifdef SIGHUP
+  if(got_sighup) raise(SIGHUP);
+#endif
   boinc_finish(process_ret);
   return process_ret;
 }

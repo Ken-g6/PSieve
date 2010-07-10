@@ -17,11 +17,6 @@
 #include <inttypes.h>
 #include <getopt.h>
 #include <ctype.h>
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <pthread.h>
-#endif
 //#ifndef __x86_64__  // Comment this to do benchmarking in 64-bit.
 #ifdef __SSE2__
 #ifdef __x86_64__

@@ -1,4 +1,8 @@
+0.3.7	BOINC version no longer uses threads at all!  Fixes suspend, Mac status.
+	Also caught and re-raised some signals, if it matters.
+
 0.3.6a	Fixed a checkpointing bug when pmin comes from ppconfig.txt
+	Also better detection of Phenom II processors.
 
 0.3.6	Faster processing for very low P, ~2-3*Kmax.
 	Also made .S files to compile on an older Linux, 32-bit works on 2.6.8

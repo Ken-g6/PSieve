@@ -17,10 +17,12 @@
 #include <inttypes.h>
 #include <getopt.h>
 #include <ctype.h>
+#ifndef USE_BOINC
 #ifdef _WIN32
 #include <windows.h>
 #else
 #include <pthread.h>
+#endif
 #endif
 //#ifndef __x86_64__  // Comment this to do benchmarking in 64-bit.
 #ifdef __SSE2__
@@ -75,10 +77,12 @@ static int ld_bbits;
 // 2: (Default) Benchmark and find the best algorithm.
 static int use_sse2 = 2;
 
+#ifndef USE_BOINC
 #ifdef _WIN32
 static CRITICAL_SECTION factors_mutex;
 #else
 static pthread_mutex_t factors_mutex;
+#endif
 #endif
 
 
@@ -104,10 +108,12 @@ static int check_sse2(void) {
 
 static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 {
+#ifndef USE_BOINC
 #ifdef _WIN32
   EnterCriticalSection(&factors_mutex);
 #else
   pthread_mutex_lock(&factors_mutex);
+#endif
 #endif
 
   if (factors_file != NULL && fprintf(factors_file,"%"PRIu64" | %"PRIu64"*2^%u%+d\n",p,k,n,c) > 0)
@@ -117,10 +123,12 @@ static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
   else fprintf(stderr, "%sUNSAVED: %"PRIu64" | %"PRIu64"*2^%u%+d\n",bmprefix(),p,k,n,c);
   factor_count++;
 
+#ifndef USE_BOINC
 #ifdef _WIN32
   LeaveCriticalSection(&factors_mutex);
 #else
   pthread_mutex_unlock(&factors_mutex);
+#endif
 #endif
 }
 
@@ -689,10 +697,12 @@ void app_init(void)
     bexit(EXIT_FAILURE);
   }
 
+#ifndef USE_BOINC
 #ifdef _WIN32
   InitializeCriticalSection(&factors_mutex);
 #else
   pthread_mutex_init(&factors_mutex,NULL);
+#endif
 #endif
 
   printf("ppsieve initialized: %"PRIu64" <= k <= %"PRIu64", %u <= n <= %u\n",
@@ -806,10 +816,12 @@ void app_fini(void)
   fclose(factors_file);
   printf("Found %u factor%s\n",factor_count,(factor_count==1)? "":"s");
 
+#ifndef USE_BOINC
 #ifdef _WIN32
   DeleteCriticalSection(&factors_mutex);
 #else
   pthread_mutex_destroy(&factors_mutex);
+#endif
 #endif
 
   if (bitmap != NULL)
