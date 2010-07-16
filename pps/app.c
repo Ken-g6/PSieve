@@ -620,11 +620,11 @@ void app_init(void)
       pmax < xkmax[0]*(UINT64_C(1)<<32) &&
       use_sse2 != 0) {
 #ifdef __x86_64__
-    if(check_intel()) {
+    if(use_sse2 < 2) sse2_in_range = 1;
+    else if(check_intel()) {
       sse2_in_range = 0;
       printf("Intel processor found.\n");
     }
-    else if(use_sse2 < 2) sse2_in_range = 1;
     else {
       // There's a chance to use the alternate algorithm, so benchmark which is faster.
       clock_t start, multime, bsftime;
