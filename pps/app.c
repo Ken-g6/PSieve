@@ -91,7 +91,12 @@ static pthread_mutex_t factors_mutex;
 static int check_sse2(void) {
   return true;
 }
-
+#ifdef __x86_64__
+// Has Apple ever used AMD?  I don't think so!  If you're running a Hackintosh on AMD, it's your funeral.
+static int check_intel(void) {
+  return true;
+}
+#endif
 #else
 
 #define cpuid(func,ax,bx,cx,dx)\
@@ -104,6 +109,15 @@ static int check_sse2(void) {
   cpuid(1,a,b,c,d);
   return((d>>26)&1);
 }
+#ifdef __x86_64__
+// True if CPU is from Intel.
+static int check_intel(void) {
+  int a,b,c,d;
+  cpuid(0,a,b,c,d);
+  // Check whether the string ends with "ntel".  No need for more.
+  return(c == 0x6c65746e);
+}
+#endif
 #endif
 
 static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
@@ -132,7 +146,7 @@ static void report_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 #endif
 }
 
-// 1 if a number mod 15 is not divisible by 2 or 3.
+// 1 if a number mod 15 is not divisible by 5 or 3.
 //                             0  1  2  3  4  5  6  7  8  9 10 11 12 13 14
 static const int prime15[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1 };
 
@@ -142,12 +156,22 @@ void test_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 
   if((k & 1) && n >= nmin && n < nmax && k >= kmin) { // k is odd.
     if (bitmap == NULL) {
+      unsigned int khigh = (unsigned int)(k>>32);
+      uint64_t mod31 = (uint64_t)1;
       // Check that K*2^N+/-1 is not divisible by 3, 5, or 7, to minimize factors printed.
       // We do 3 and 5 at the same time (15 = 2^4-1), then 7 (=2^3-1).
+      // Then 17, 11 (and 31), 13, and maybe 19, if there's space. 23 can also go in there, if it's worth it.
       // (k*(1<<(n%2))+c)%3 == 0
       if(prime15[(unsigned int)(((k<<(n&3))+(uint64_t)c)%(uint64_t)15)] && 
-          (unsigned int)(((k<<(n%3))+(uint64_t)c)%(uint64_t)7) != 0)
-        report_factor(p,k,n,c);
+          (unsigned int)(((k<<(n%3))+(uint64_t)c)%(uint64_t)7) != 0 &&
+          (khigh >= (1<<(32-8)) || ((unsigned int)(((k<<(n&7))+(uint64_t)c)%(uint64_t)17) != 0 && 
+          (khigh >= (1<<(32-10)) || ((unsigned int)((mod31=(k<<(n%10))+(uint64_t)c)%(uint64_t)11) != 0 &&
+          (khigh >= (1<<(32-11)) || ((unsigned int)(((k<<(n%11))+(uint64_t)c)%(uint64_t)23) != 0 &&
+          (khigh >= (1<<(32-12)) || ((unsigned int)(((k<<(n%12))+(uint64_t)c)%(uint64_t)13) != 0 &&
+          (khigh >= (1<<(32-18)) || ((unsigned int)(((k<<(n%18))+(uint64_t)c)%(uint64_t)19) != 0
+          )))))))))))
+        if((unsigned int)(mod31%(uint64_t)31) != 0)
+          report_factor(p,k,n,c);
     } else {
       if (bitmap[n-nmin][(unsigned int)((b-b0)/8)] & (1<<(b-b0)%8))
         report_factor(p,k,n,c);
@@ -596,7 +620,11 @@ void app_init(void)
       pmax < xkmax[0]*(UINT64_C(1)<<32) &&
       use_sse2 != 0) {
 #ifdef __x86_64__
-    if(use_sse2 < 2) sse2_in_range = 1;
+    if(check_intel()) {
+      sse2_in_range = 0;
+      printf("Intel processor found.\n");
+    }
+    else if(use_sse2 < 2) sse2_in_range = 1;
     else {
       // There's a chance to use the alternate algorithm, so benchmark which is faster.
       clock_t start, multime, bsftime;
@@ -636,12 +664,12 @@ void app_init(void)
 #endif
   }
   if(sse2_in_range) {
-    printf("using alternate algorithm.\n");
+    bmsg("using alternate algorithm.\n");
   } else {
     if(has_sse2) {
-      printf("using standard algorithm.\n");
+      bmsg("using standard algorithm.\n");
     } else {
-      printf("using 32-bit only algorithm.\n");
+      bmsg("using 32-bit only algorithm.\n");
     }
   }
 
