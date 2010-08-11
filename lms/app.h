@@ -23,8 +23,8 @@
 #define APP_BUFLEN 6
 
 /* The number of K's represented by a bit, and where that K falls */
-//#define KS_PER_BIT 30
-//#define K_IN_BIT 15
+#define KS_PER_BIT 30
+#define K_IN_BIT 15
 
 #define CHECKPOINT_FILENAME "lmcheckpoint.txt"
 
@@ -39,7 +39,7 @@
   {"nmin",          required_argument, 0, 'n'}, \
   {"nmax",          required_argument, 0, 'N'}, \
   {"input",         required_argument, 0, 'i'}, \
-  {"factors",       required_argument, 0, 'f'}
+  {"factors",       required_argument, 0, 'f'},
 
 void app_banner(void);
 int app_parse_option(int opt, char *arg, const char *source);
