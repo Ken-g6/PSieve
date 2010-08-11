@@ -1,0 +1,24 @@
+# lms files to ignore:
+license.txt
+*.bad
+.*.swp
+
+# Testing files:
+halfmil*.txt
+
+# - Results file:
+lmfactors.txt
+
+# Binaries:
+lmsieve-x86-*
+
+# NewPGen stuff
+NewPGen.*
+
+# BOINC files:
+boinc_finish_called
+init_data.xml
+stderr.txt
+
+# Recursive definitions:
+#CHANGES.txt
