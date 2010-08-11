@@ -370,9 +370,9 @@ static uint64_t read_checkpoint(void)
 
 
 #ifdef USE_BOINC
-static const char *short_opts = "p:P:Q:B:C:c:r:z:h" APP_SHORT_OPTS;
+static const char *short_opts = "p:P:Q:B:C:c:r:z:hq" APP_SHORT_OPTS;
 #else
-static const char *short_opts = "p:P:Q:B:C:c:r:t:z:h" APP_SHORT_OPTS;
+static const char *short_opts = "p:P:Q:B:C:c:r:t:z:hq" APP_SHORT_OPTS;
 #endif
 
 static const struct option long_opts[] = {

@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 
-#define APP_VERSION "0.3.8"
+#define APP_VERSION "0.3.9"
 
 /* Number of primes to buffer between calls to app_thread_fun()
  */
@@ -30,7 +30,7 @@
 
 #define FACTORS_FILENAME_DEFAULT "ppfactors.txt"
 
-#define APP_SHORT_OPTS "k:K:n:N:i:f:qa:s:"
+#define APP_SHORT_OPTS "k:K:n:N:i:f:Ra:s:"
 #define APP_LONG_OPTS \
   {"kmin",          required_argument, 0, 'k'}, \
   {"kmax",          required_argument, 0, 'K'}, \

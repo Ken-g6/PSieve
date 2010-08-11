@@ -36,6 +36,7 @@
 #include "main.h"
 #include "putil.h"
 #include "app.h"
+#include "factor_proth.h"
 #ifdef __x86_64__
 #include "app_thread_fun_x64.h"
 #else
@@ -170,7 +171,7 @@ void test_factor(uint64_t p, uint64_t k, unsigned int n, int c)
           (khigh >= (1<<(32-12)) || ((unsigned int)(((k<<(n%12))+(uint64_t)c)%(uint64_t)13) != 0 &&
           (khigh >= (1<<(32-18)) || ((unsigned int)(((k<<(n%18))+(uint64_t)c)%(uint64_t)19) != 0
           )))))))))))
-        if((unsigned int)(mod31%(uint64_t)31) != 0)
+        if((unsigned int)(mod31%(uint64_t)31) != 0 && try_all_factors(k, n, c) == 0)
           report_factor(p,k,n,c);
     } else {
       if (bitmap[n-nmin][(unsigned int)((b-b0)/8)] & (1<<(b-b0)%8))
@@ -715,7 +716,7 @@ void app_init(void)
       read_abcd_file(input_filename, file);
     else /* if (file_format == FORMAT_NEWPGEN) */
       read_newpgen_file(input_filename, file);
-  }
+  } else sieve_small_primes(11);
 
   if (factors_filename == NULL)
     factors_filename = FACTORS_FILENAME_DEFAULT;
