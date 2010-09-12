@@ -3,6 +3,8 @@ license.txt
 *.bad
 # - Results file:
 ppfactors.txt
+fppse*.txt
+ppsort*.txt
 
 # Binaries:
 ppsieve-*-linux
