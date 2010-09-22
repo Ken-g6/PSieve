@@ -775,7 +775,7 @@ sieve_t *create_sieve(uint64_t pmin,
   /* Residues will be initialized during the first call to sieve(). */
 #endif
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   InitializeCriticalSection(&sv->mutexA);
   InitializeCriticalSection(&sv->mutexB);
@@ -933,7 +933,7 @@ sieve_t *create_gfn_sieve(uint64_t kmin,
     sv->sieve_data.res[i] = r;
   }
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   InitializeCriticalSection(&sv->mutexA);
   InitializeCriticalSection(&sv->mutexB);
@@ -1009,7 +1009,7 @@ void destroy_sieve(sieve_t *sv)
 
   assert(sv != NULL);
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   DeleteCriticalSection(&sv->mutexA);
   DeleteCriticalSection(&sv->mutexB);
@@ -1036,7 +1036,7 @@ uint64_t next_chunk(sieve_t *sv)
 
   assert(sv != NULL);
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
   /* sv->cand_next must be read atomically, which requires mutual exclusion
      if the register size is less than 64 bits. */
 
@@ -1052,7 +1052,7 @@ uint64_t next_chunk(sieve_t *sv)
 
   cand_next = sv->cand_next;
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
   if (sizeof(void *) < sizeof(uint64_t))
   {
 #ifdef _WIN32
@@ -1078,7 +1078,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
   assert(sv != NULL);
   assert(bitmap != NULL);
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   EnterCriticalSection(&sv->mutexA);
 #else
@@ -1094,7 +1094,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
   if (sv->all_done == 0)
   {
     if (sv->sieve_done || sv->free_blocks == 0
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 		    || (single_thread == 0 && 
 #ifdef _WIN32
         !TryEnterCriticalSection(&sv->mutexB)
@@ -1118,7 +1118,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
         printf("Thread %d: waiting for more chunks\n",th);
 #endif
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
         /* Block until more chunks are ready */
 #ifdef _WIN32
         sv->condC_waiting++;
@@ -1145,7 +1145,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
       printf("Thread %d: sieving, using free block %u\n",th,i);
 #endif
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
       LeaveCriticalSection(&sv->mutexA);
 #else
@@ -1156,7 +1156,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
       j = sieve(&sv->sieve_data,&sv->block[i].base,sv->block[i].bits,sv->block_size);
       assert(j != 0);
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
       EnterCriticalSection(&sv->mutexA);
 #else
@@ -1199,7 +1199,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
 #endif
         sv->curr_block = i;
       }
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
       LeaveCriticalSection(&sv->mutexB);
 #else
@@ -1298,7 +1298,7 @@ uint64_t get_chunk(sieve_t *sv, unsigned long **bitmap, int single_thread)
   printf("Thread %d: leaving get_chunk()\n",th);
 #endif
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   LeaveCriticalSection(&sv->mutexA);
 #else
@@ -1320,7 +1320,7 @@ void free_chunk(sieve_t *sv, uint64_t chunk)
   assert(sv != NULL);
   assert(chunk != 0);
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   EnterCriticalSection(&sv->mutexA);
 #else
@@ -1353,7 +1353,7 @@ void free_chunk(sieve_t *sv, uint64_t chunk)
             {
               /* It is possible, if there are fewer blocks than threads,
                that threads could be waiting for a free block. */
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
               if (sv->condC_waiting > 0)
               {
@@ -1380,7 +1380,7 @@ void free_chunk(sieve_t *sv, uint64_t chunk)
   printf("Thread %d: leaving free_chunk()\n",th);
 #endif
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   LeaveCriticalSection(&sv->mutexA);
 #else

@@ -17,8 +17,13 @@
 
 #include <stdint.h>
 
-
 #ifdef USE_BOINC
+#ifndef _WIN32
+#define SINGLE_THREAD
+#endif
+#endif
+
+#ifdef SINGLE_THREAD
 #define MAX_THREADS 1  /* Excluding parent thread */
 #else
 #define MAX_THREADS 128  /* Excluding parent thread */

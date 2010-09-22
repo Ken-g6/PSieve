@@ -1,4 +1,5 @@
 appname=ppsieve
+tpsappname=tpsieve
 cleanvars="-s -static-libgcc -static"
 gcc_is_new=`gcc --version | grep " 4\.[3-9]" | wc -l`
 # To build the BOINC Linux 64 version, get and make BOINC from subversion.  Place its directory location below.
@@ -27,21 +28,30 @@ if [ "$kernel" != "" ] ; then export LD_ASSUME_KERNEL=$kernel ; fi
 if [ "$gcc_is_new" == "1" ] ; then
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -S -o app_thread_fun_sse2.S app_thread_fun.c
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -S -o app_thread_fun_nosse2.S app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -S -o tps_thread_fun_sse2.S app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -S -o tps_thread_fun_nosse2.S app_thread_fun.c
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun.c
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o tps_thread_fun_sse2.o app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o tps_thread_fun_nosse2.o app_thread_fun.c
 else
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun_sse2.S
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun_nosse2.S
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i686 -msse2 -I. -I.. -c -o tps_thread_fun_sse2.o tps_thread_fun_sse2.S
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -I. -I.. -c -o tps_thread_fun_nosse2.o tps_thread_fun_nosse2.S
 fi
 
 if [ "$1" != "boinc" ] ; then
 	echo Making i686 non-BOINC version.
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm -lpthread
+	echo Making i686 non-BOINC TPS.
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $tpsappname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c tps_thread_fun_sse2.o tps_thread_fun_nosse2.o -lm -lpthread
 	#gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-x86-linux-sse2 ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c -lm -lpthread
 else
 	if [ "$arch" == "i686" ] ; then
 		echo Making i686 BOINC version.
 		gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-boinc-x86-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
+		#gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -DSEARCH_TWIN -I. -I.. -o $tpsappname-boinc-x86-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
 	fi
 fi
 if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi
@@ -53,6 +63,11 @@ if [ -f /multimedia/mingw/bin/gcc.exe -a "$1" != "boinc" ] ; then
 	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun.c
 	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun.c
 	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 -fomit-frame-pointer -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=core2 -I. -I.. -s -o $appname-x86-windows.exe ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm
+
+	echo Making i686 Windows TPS.
+	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -c -o app_thread_fun_sse2.o app_thread_fun.c
+	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=pentium3 -I. -I.. -c -o app_thread_fun_nosse2.o app_thread_fun.c
+	wine /multimedia/mingw/bin/gcc.exe -Wall -O3 -fomit-frame-pointer -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=core2 -I. -I.. -s -o $tpsappname-x86-windows.exe ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm
 	#wine /multimedia/mingw/bin/gcc.exe -Wall -O3 -fomit-frame-pointer -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -s -o $appname-x86-windows-sse2.exe ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c -lm
 fi
 
@@ -61,12 +76,16 @@ if [ "$kernel" != "" ] ; then export LD_ASSUME_KERNEL=$kernel ; fi
 if [ "$gcc_is_new" == "1" ] ; then
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -S -o app_thread_fun-x86_64.S app_thread_fun.c
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -c -o app_thread_fun-x86_64.o app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -S -o tps_thread_fun-x86_64.S app_thread_fun.c
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -c -o tps_thread_fun-x86_64.o app_thread_fun.c
 else
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -I. -I.. -c -o app_thread_fun-x86_64.o app_thread_fun-x86_64.S
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -I. -I.. -c -o tps_thread_fun-x86_64.o tps_thread_fun-x86_64.S
 fi
 if [ "$1" != "boinc" ] ; then
 	echo Making x86_64 non-BOINC version.
 	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun-x86_64.o -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $tpsappname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun.c -lm -lpthread
 else
 	if [ "$arch" == "x86_64" ] ; then
 		echo Making x86_64 BOINC version.
@@ -78,4 +97,5 @@ if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi
 if [ -f /multimedia/mingw64/bin/x86_64-w64-mingw32-gcc.exe -a "$1" != "boinc" ] ; then
 	echo Making x86_64 non-BOINC Windows version.
 	wine /multimedia/mingw64/bin/x86_64-w64-mingw32-gcc.exe -Wall -O3 -fomit-frame-pointer -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -s -o $appname-x86_64-windows.exe ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun.c -lm
+	wine /multimedia/mingw64/bin/x86_64-w64-mingw32-gcc.exe -Wall -O3 -fomit-frame-pointer -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -s -o $tpsappname-x86_64-windows.exe ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun.c -lm
 fi

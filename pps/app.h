@@ -16,19 +16,26 @@
 #include <stdint.h>
 
 
-#define APP_VERSION "0.3.9"
+#define APP_VERSION "0.3.10"
+
+#ifdef SEARCH_TWIN
+#define APP_PREFIX "tp"
+#else 
+#define APP_PREFIX "pp"
+#endif
+#define APP_NAME APP_PREFIX"sieve"
 
 /* Number of primes to buffer between calls to app_thread_fun()
  */
 #define APP_BUFLEN 6
 #define MIN_MULMOD_NSTEP 2
 
-#define CHECKPOINT_FILENAME "ppcheck%s.txt"
-#define OLD_CHECKPOINT_FILENAME "ppcheckpoint.txt"
+#define CHECKPOINT_FILENAME APP_PREFIX"check%s.txt"
+#define OLD_CHECKPOINT_FILENAME APP_PREFIX"checkpoint.txt"
 
-#define CONFIG_FILENAME "ppconfig.txt"
+#define CONFIG_FILENAME APP_PREFIX"config.txt"
 
-#define FACTORS_FILENAME_DEFAULT "ppfactors.txt"
+#define FACTORS_FILENAME_DEFAULT APP_PREFIX"factors.txt"
 
 #define APP_SHORT_OPTS "k:K:n:N:i:f:Ra:s:"
 #define APP_LONG_OPTS \
@@ -41,6 +48,14 @@
   {"riesel",        no_argument,       0, 'R'}, \
   {"alt",           required_argument, 0, 'a'}, \
   {"sse2",          required_argument, 0, 's'},
+
+#ifdef USE_BOINC
+#include <error_numbers.h>
+#else
+// Error codes, matching BOINC's.
+#define ERR_FOPEN -108
+#define ERR_SCANF -140
+#endif
 
 void app_banner(void);
 int app_parse_option(int opt, char *arg, const char *source);

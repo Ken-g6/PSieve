@@ -158,7 +158,9 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
 #endif
   unsigned int x;
   unsigned int i;
+#ifndef SEARCH_TWIN
   unsigned int nstart = n;
+#endif
 
 #if (APP_BUFLEN <= 6)
   for (i = 0; i < APP_BUFLEN; i++)
@@ -488,14 +490,20 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
 #endif
   }
 
+#ifndef SEARCH_TWIN
   // Use only -K.
   if(addsign == 1) {
     for (i = 0; i < APP_BUFLEN; i++) {
       K[i] = P[i]-K[i];
     }
   }
+#endif
   if (nstep <= MIN_MULMOD_NSTEP) /* Use fast division by 2 */
   {
+#ifdef SEARCH_TWIN
+    bmsg("Error: twin searching not implemented for such a small P.\n");
+    bexit(1);
+#else
     /* Check all N's */
 # ifdef __x86_64__
     if(sse2_in_range) {
@@ -654,9 +662,11 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
     }
 #endif	// SSE2
 #endif	// x86_64
+#endif  // SEARCH_TWIN
   }
   else /* nstep > 1, use multiplication by 2^{nstep} */
   {
+    //int debugflag = 0;
 #ifdef EMM
     // Load nstep for SSE2 shifting.
 #ifndef __x86_64__
@@ -668,13 +678,33 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
     for (i = 0; i < APP_BUFLEN; i++) {
       uint64_t kpos;
       unsigned int mpos;
+#ifdef SEARCH_TWIN
+      uint64_t ppos = P[i];
+      //if(P[i] == 710001064441429ull) {
+        //printf("p = %lu appears.\n", P[i]);
+        //debugflag = 1;
+      //}
+#endif
 
       kpos = K[i];
+#ifdef SEARCH_TWIN
+      // Test the even one.
+      kpos = (((unsigned int)kpos)&1)?(ppos-kpos):kpos;
+#endif
       mpos = __builtin_ctzll(kpos);
-      kpos >>= mpos;
+      //(kpos >> mpos);
 
-      if (kpos <= kmax && kpos >= kmin && n+mpos <= nmax)
-        test_factor(P[i],kpos,n+mpos,addsign);
+      if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && n+mpos <= nmax)
+#ifndef SEARCH_TWIN
+        test_factor(P[i],(kpos >> mpos),n+mpos,addsign);
+#else
+        test_factor(P[i],(kpos >> mpos),n+mpos,(kpos == K[i])?-1:1);
+
+      // Test the odd one, without a shift.
+      kpos = ppos - kpos;
+      if (kpos <= kmax && kpos >= kmin)
+        test_factor(P[i],kpos,n,(kpos == K[i])?-1:1);
+#endif
     }
 
     if (n > nmin)
@@ -712,449 +742,578 @@ void app_thread_fun_nosse2(int th, uint64_t *__attribute__((aligned(16))) P, con
       /* Remaining steps are all of equal size nstep */
 #ifdef EMM
       // Faster, but range-restricted SSE2 algorithm:
-      if(sse2_in_range)
+      if(sse2_in_range) {
+        //if(debugflag) printf("DEBUG: Using alternate algorithm.\n");
         do {
-        n -= nstep;
+          n -= nstep;
 
-        /* K[i] <-- K[i]*2^{nstep} mod P[i] */
+          /* K[i] <-- K[i]*2^{nstep} mod P[i] */
 
-        asm ("fildll %1\n\t"
-             "fmul %%st(1)\n\t"
-             "fistpll %0"
-             : "=m" (T[0]) : "m" (K[0]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(1)\n\t"
+              "fistpll %0"
+              : "=m" (T[0]) : "m" (K[0]) );
 
 #if (APP_BUFLEN >= 2)
-        asm ("fildll %1\n\t"
-             "fmul %%st(2)\n\t"
-             "fistpll %0"
-             : "=m" (T[1]) : "m" (K[1]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(2)\n\t"
+              "fistpll %0"
+              : "=m" (T[1]) : "m" (K[1]) );
 #endif
 #if (APP_BUFLEN >= 3)
-        asm ("fildll %1\n\t"
-             "fmul %%st(3)\n\t"
-             "fistpll %0"
-             : "=m" (T[2]) : "m" (K[2]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(3)\n\t"
+              "fistpll %0"
+              : "=m" (T[2]) : "m" (K[2]) );
 #endif
 #if (APP_BUFLEN >= 4)
-        asm ("fildll %1\n\t"
-             "fmul %%st(4)\n\t"
-             "fistpll %0"
-             : "=m" (T[3]) : "m" (K[3]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(4)\n\t"
+              "fistpll %0"
+              : "=m" (T[3]) : "m" (K[3]) );
 #endif
 #if (APP_BUFLEN >= 5)
-        asm ("fildll %1\n\t"
-             "fmul %%st(5)\n\t"
-             "fistpll %0"
-             : "=m" (T[4]) : "m" (K[4]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(5)\n\t"
+              "fistpll %0"
+              : "=m" (T[4]) : "m" (K[4]) );
 #endif
 #if (APP_BUFLEN >= 6)
-        asm ("fildll %1\n\t"
-             "fmul %%st(6)\n\t"
-             "fistpll %0"
-             : "=m" (T[5]) : "m" (K[5]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(6)\n\t"
+              "fistpll %0"
+              : "=m" (T[5]) : "m" (K[5]) );
 #endif
 #if (APP_BUFLEN >= 7)
-        for (i = 6; i < APP_BUFLEN; i++)
-          asm ("fldt %2\n\t"
-               "fildll %1\n\t"
-               "fmulp\n\t"
-               "fistpll %0"
-               : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
+          for (i = 6; i < APP_BUFLEN; i++)
+            asm ("fldt %2\n\t"
+                "fildll %1\n\t"
+                "fmulp\n\t"
+                "fistpll %0"
+                : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
 #endif
 
 #ifdef __x86_64__
-        for (i = 0; i < APP_BUFLEN; i++)
-          if (__builtin_expect(((K[i] = (K[i]<<nstep) - T[i]*P[i]) >= P[i]),0))
-            K[i] -= P[i];
+          for (i = 0; i < APP_BUFLEN; i++)
+            if (__builtin_expect(((K[i] = (K[i]<<nstep) - T[i]*P[i]) >= P[i]),0))
+              K[i] -= P[i];
 #else
-        for (i = 0; i < APP_BUFLEN; i+=2) {
-          register __m128i mk, mp, mt, mtemp, mtemp2;
-          mp = _mm_load_si128((__m128i*)(&P[i]));
-          mt = _mm_load_si128((__m128i*)(&T[i]));
-          mk = _mm_load_si128((__m128i*)(&K[i])); // Slip this in the latency.
-          mtemp = _mm_srli_epi64(mp, 32);
-          mtemp2 = _mm_srli_epi64(mt, 32);
-          mtemp = _mm_mul_epu32(mtemp, mt);
-          mtemp2 = _mm_mul_epu32(mtemp2, mp);
-          mk = _mm_sll_epi64(mk, mnstep); // Slip this in on another port.
-          mt = _mm_mul_epu32(mt, mp);
-          mtemp = _mm_add_epi32(mtemp, mtemp2); // Just need the low doublewords.
-          mtemp = _mm_slli_epi64(mtemp, 32); // Move result to other column (high doublewords).
-          mt = _mm_add_epi32(mt, mtemp);  // Add the results; only need high doublewords.
-          mk = _mm_sub_epi64(mk, mt);
-          // In case of (n & x), do the divide by two here; This is not that case.
-          _mm_store_si128((__m128i*)(&K[i]), mk);
-          mk = _mm_sub_epi64(mk, mp);     // Negative iff K[i] < P[i]
-          unsigned int bits = _mm_movemask_epi8(mk);
-          if((bits & 0x80) == 0) K[i] -= P[i];
-          if((bits & 0x8000) == 0) K[i+1] -= P[i+1];
-        }
+          for (i = 0; i < APP_BUFLEN; i+=2) {
+            register __m128i mk, mp, mt, mtemp, mtemp2;
+            mp = _mm_load_si128((__m128i*)(&P[i]));
+            mt = _mm_load_si128((__m128i*)(&T[i]));
+            mk = _mm_load_si128((__m128i*)(&K[i])); // Slip this in the latency.
+            mtemp = _mm_srli_epi64(mp, 32);
+            mtemp2 = _mm_srli_epi64(mt, 32);
+            mtemp = _mm_mul_epu32(mtemp, mt);
+            mtemp2 = _mm_mul_epu32(mtemp2, mp);
+            mk = _mm_sll_epi64(mk, mnstep); // Slip this in on another port.
+            mt = _mm_mul_epu32(mt, mp);
+            mtemp = _mm_add_epi32(mtemp, mtemp2); // Just need the low doublewords.
+            mtemp = _mm_slli_epi64(mtemp, 32); // Move result to other column (high doublewords).
+            mt = _mm_add_epi32(mt, mtemp);  // Add the results; only need high doublewords.
+            mk = _mm_sub_epi64(mk, mt);
+            // In case of (n & x), do the divide by two here; This is not that case.
+            _mm_store_si128((__m128i*)(&K[i]), mk);
+            mk = _mm_sub_epi64(mk, mp);     // Negative iff K[i] < P[i]
+            unsigned int bits = _mm_movemask_epi8(mk);
+            if((bits & 0x80) == 0) K[i] -= P[i];
+            if((bits & 0x8000) == 0) K[i+1] -= P[i+1];
+          }
 #endif
 
 #ifdef __x86_64__
-        /* K[i] <-- K[i]*2^{nstep} mod P[i] */
+          /* K[i] <-- K[i]*2^{nstep} mod P[i] */
 
-        asm ("fildll %1\n\t"
-             "fmul %%st(1)\n\t"
-             "fistpll %0"
-             : "=m" (T[0]) : "m" (K[0]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(1)\n\t"
+              "fistpll %0"
+              : "=m" (T[0]) : "m" (K[0]) );
 
 #if (APP_BUFLEN >= 2)
-        asm ("fildll %1\n\t"
-             "fmul %%st(2)\n\t"
-             "fistpll %0"
-             : "=m" (T[1]) : "m" (K[1]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(2)\n\t"
+              "fistpll %0"
+              : "=m" (T[1]) : "m" (K[1]) );
 #endif
 #if (APP_BUFLEN >= 3)
-        asm ("fildll %1\n\t"
-             "fmul %%st(3)\n\t"
-             "fistpll %0"
-             : "=m" (T[2]) : "m" (K[2]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(3)\n\t"
+              "fistpll %0"
+              : "=m" (T[2]) : "m" (K[2]) );
 #endif
 #if (APP_BUFLEN >= 4)
-        asm ("fildll %1\n\t"
-             "fmul %%st(4)\n\t"
-             "fistpll %0"
-             : "=m" (T[3]) : "m" (K[3]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(4)\n\t"
+              "fistpll %0"
+              : "=m" (T[3]) : "m" (K[3]) );
 #endif
 #if (APP_BUFLEN >= 5)
-        asm ("fildll %1\n\t"
-             "fmul %%st(5)\n\t"
-             "fistpll %0"
-             : "=m" (T[4]) : "m" (K[4]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(5)\n\t"
+              "fistpll %0"
+              : "=m" (T[4]) : "m" (K[4]) );
 #endif
 #if (APP_BUFLEN >= 6)
-        asm ("fildll %1\n\t"
-             "fmul %%st(6)\n\t"
-             "fistpll %0"
-             : "=m" (T[5]) : "m" (K[5]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(6)\n\t"
+              "fistpll %0"
+              : "=m" (T[5]) : "m" (K[5]) );
 #endif
 #if (APP_BUFLEN >= 7)
-        for (i = 6; i < APP_BUFLEN; i++)
-          asm ("fldt %2\n\t"
-               "fildll %1\n\t"
-               "fmulp\n\t"
-               "fistpll %0"
-               : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
+          for (i = 6; i < APP_BUFLEN; i++)
+            asm ("fldt %2\n\t"
+                "fildll %1\n\t"
+                "fmulp\n\t"
+                "fistpll %0"
+                : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
 #endif
 
-        for (i = 0; i < APP_BUFLEN; i++)
-          if (__builtin_expect(((K[i+APP_BUFLEN] = (K[i]<<nstep) - T[i]*P[i]) >= P[i]),0))
-            K[i+APP_BUFLEN] -= P[i];
+          for (i = 0; i < APP_BUFLEN; i++) {
+            uint64_t ppos = P[i];
+            uint64_t mk2, nk2;
+            mk2 = K[i];
+            if (__builtin_expect(((K[i+APP_BUFLEN] = (mk2<<nstep) - T[i]*ppos) >= ppos),0))
+              K[i+APP_BUFLEN] -= ppos;
+#ifdef SEARCH_TWIN
+            // Test the even one.
+            mk2 = ((mk2)&1)?(ppos-mk2):mk2;
+#endif
+            nk2 = (-mk2) & mk2;
+            nk2 *= kmax;
+            if(mk2 <= nk2) {
+              uint64_t kpos;
+              unsigned int mpos;
+              kpos = mk2;
+              mpos = __builtin_ctzll(kpos);
+              kpos >>= mpos;
 
-        for (i = 0; i < APP_BUFLEN; i++) {
-          uint64_t mk2, nk2;
-          mk2 = K[i];
-          nk2 = (-mk2) & mk2;
-          nk2 *= kmax;
-          if(mk2 <= nk2) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
-
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i],kpos,n+mpos,addsign);
-          }
-        }
-        n -= nstep;
-        for (; i < APP_BUFLEN*2; i++) {
-          uint64_t mk2, nk2;
-          mk2 = K[i];
-          K[i-APP_BUFLEN] = mk2;
-          nk2 = (-mk2) & mk2;
-          nk2 *= kmax;
-          if(mk2 <= nk2) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
-
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
-          }
-        }
+              if (kpos <= kmax && kpos >= kmin && mpos < nstep)
+#ifdef SEARCH_TWIN
+                test_factor(P[i],kpos,n+mpos,(mk2 == K[i])?-1:1);
 #else
-        for(i=0; i < APP_BUFLEN; i+=2) {
-          __m128i mk, nk;
-          unsigned int bitsk;
-          // This limits the range to kmax < P < 2^32*kmax, and kmax < 2^32
-          mk = _mm_load_si128((__m128i*)(&K[i]));
-          // 1. Find the LSB of K with (K & -K)
-          nk = _mm_xor_si128(nk, nk);
-          nk = _mm_sub_epi32(nk, mk);   // Can be 32-bit since just looking for 1's in that area.
-          nk = _mm_and_si128(nk, mk);
-          //4. Add kmax+1 (or in this case sub it from the original K.)
-          mk = _mm_sub_epi64(mk, mkmax);	// No longer using original mk, so fix it here.
-          //2. Subtract 1 so it's all 1's below the number in the worst case.
-          //   Might as well be 32-bit, since mul is 32-bit, and 0-1 = all 1's. 
-          nk = _mm_sub_epi32(nk, mones);
-          //3. Multiply kmax+1 by (unsigned int)that LSB
-          nk = _mm_mul_epu32(nk, mkmax);
-          //5. Compare the values: sub and get high bits.
-          mk = _mm_sub_epi64(mk, nk);
-          bitsk = _mm_movemask_epi8(mk);
-          if ((bitsk & 0x80)) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
-
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
               test_factor(P[i],kpos,n+mpos,addsign);
+#endif
+            }
+#ifdef SEARCH_TWIN
+            // Test the odd one, without multiplying.
+            mk2 = ppos - mk2;
+            if (mk2 <= kmax && mk2 >= kmin)
+              test_factor(P[i],mk2,n,(mk2 == K[i])?-1:1);
+#endif
           }
-          if ((bitsk & 0x8000)) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i+1];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
+          n -= nstep;
+          for (; i < APP_BUFLEN*2; i++) {
+#ifdef SEARCH_TWIN
+            uint64_t ppos = P[i-APP_BUFLEN];
+#endif
+            uint64_t mk2, nk2;
+            mk2 = K[i];
+            K[i-APP_BUFLEN] = mk2;
+#ifdef SEARCH_TWIN
+            // Test the even one.
+            mk2 = ((mk2)&1)?(ppos-mk2):mk2;
+#endif
+            nk2 = (-mk2) & mk2;
+            nk2 *= kmax;
+            if(mk2 <= nk2) {
+              uint64_t kpos;
+              unsigned int mpos;
+              kpos = mk2;
+              mpos = __builtin_ctzll(kpos);
+              kpos >>= mpos;
 
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i+1],kpos,n+mpos,addsign);
-          }
-        }
-        /*n -= nstep;
-        for(; i < APP_BUFLEN*2; i+=2) {
-          __m128i mk, nk;
-          unsigned int bitsk;
-          // This limits the range to kmax < P < 2^32*kmax, and kmax < 2^32
-          mk = _mm_load_si128((__m128i*)(&K[i]));
-          _mm_store_si128((__m128i*)(&K[i-APP_BUFLEN]), mk);
-          // 1. Find the LSB of K with (K & -K)
-          nk = _mm_xor_si128(nk, nk);
-          nk = _mm_sub_epi32(nk, mk);   // Can be 32-bit since just looking for 1's in that area.
-          nk = _mm_and_si128(nk, mk);
-          //4. Add kmax+1 (or in this case sub it from the original K.)
-          mk = _mm_sub_epi64(mk, mkmax);	// No longer using original mk, so fix it here.
-          //2. Subtract 1 so it's all 1's below the number in the worst case.  Might as well be 32-bit, since mul is 32-bit, and 0-1 = all 1's. 
-          nk = _mm_sub_epi32(nk, mones);
-          //3. Multiply kmax+1 by (unsigned int)that LSB
-          nk = _mm_mul_epu32(nk, mkmax);
-          //5. Compare the values: sub and get high bits.
-          mk = _mm_sub_epi64(mk, nk);
-          bitsk = _mm_movemask_epi8(mk);
-          if ((bitsk & 0x80)) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
-
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
+              if (kpos <= kmax && kpos >= kmin && mpos < nstep)
+#ifdef SEARCH_TWIN
+                test_factor(P[i-APP_BUFLEN],kpos,n+mpos,(mk2 == K[i])?-1:1);
+#else
               test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
+#endif
+            }
+#ifdef SEARCH_TWIN
+            // Test the odd one, without multiplying.
+            mk2 = ppos - mk2;
+            if (mk2 <= kmax && mk2 >= kmin)
+              test_factor(P[i-APP_BUFLEN],mk2,n,(mk2 == K[i])?-1:1);
+#endif
           }
-          if ((bitsk & 0x8000)) {
-            uint64_t kpos;
-            unsigned int mpos;
-            kpos = K[i+1];
-            mpos = __builtin_ctzll(kpos);
-            kpos >>= mpos;
+#else
+#ifdef SEARCH_TWIN
+          // First find the odd value of K or P-K and check it;
+          // Save the even value in T if needed.
+          // Then check the even value.
+          {
+            // mk holds K; mt P or the value for T; mxor (K^(P-K));
+            // and mbit all 1's or all 0's depending on K&1.
+            // ...generally.  They mix it up a bit.
+            __m128i mk, nk, mk2, nk2;
+            unsigned int bits, bitsk;
+            for(i=0; i < APP_BUFLEN; i+=2) {
+              // This limits the range to kmax < P, and kmax < 2^32
+              mk = _mm_load_si128((__m128i*)(&K[i]));
+              mk2 = _mm_load_si128((__m128i*)(&P[i]));
+              mk2 = _mm_sub_epi64(mk2, mk);   // mk2 = P-K
+              // 1. Find the LSB of K with (K & -K)
+              nk = _mm_xor_si128(nk, nk);
+              nk2 = _mm_xor_si128(nk2, nk2);
+              nk = _mm_sub_epi32(nk, mk);   // Can be 32-bit since just looking for 1's in that area.
+              nk2 = _mm_sub_epi32(nk2, mk2);
+              nk = _mm_and_si128(nk, mk);
+              nk2 = _mm_and_si128(nk2, mk2);
+              //4. Add kmax+1 (or in this case sub it from the original K.)
+              mk = _mm_sub_epi64(mk, mkmax);	// No longer using original mk, so fix it here.
+              mk2 = _mm_sub_epi64(mk2, mkmax);
+              //2. Subtract 1 so it's all 1's below the number in the worst case.
+              //   Might as well be 32-bit, since mul is 32-bit, and 0-1 = all 1's. 
+              nk = _mm_sub_epi32(nk, mones);
+              nk2 = _mm_sub_epi32(nk2, mones);
+              //3. Multiply kmax+1 by (unsigned int)that LSB
+              nk = _mm_mul_epu32(nk, mkmax);
+              nk2 = _mm_mul_epu32(nk2, mkmax);
+              //5. Compare the values: sub and get high bits.
+              mk = _mm_sub_epi64(mk, nk);
+              mk2 = _mm_sub_epi64(mk2, nk2);
+              bits = _mm_movemask_epi8(mk);
+              bitsk = _mm_movemask_epi8(mk2);
+              // Do the final testing for each section.
+              //assert(K[i] == T[i] || T[i] == (P[i]-K[i]));
+              //assert(K[i+1] == T[i+1] || T[i+1] == (P[i+1]-K[i+1]));
+              if ((bits & 0x80)) {
+                uint64_t kpos;
+                unsigned int mpos;
+                kpos = K[i];
+                mpos = __builtin_ctzll(kpos);
 
-            if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-              test_factor(P[i-APP_BUFLEN+1],kpos,n+mpos,addsign);
+                if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+                  test_factor(P[i],(kpos >> mpos),n+mpos,-1);
+              }
+              if ((bits & 0x8000)) {
+                uint64_t kpos;
+                unsigned int mpos;
+                kpos = K[i+1];
+                mpos = __builtin_ctzll(kpos);
+
+                if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+                  test_factor(P[i+1],(kpos >> mpos),n+mpos,-1);
+              }
+              if ((bitsk & 0x80)) {
+                uint64_t kpos;
+                unsigned int mpos;
+                kpos = P[i]-K[i];
+                mpos = __builtin_ctzll(kpos);
+
+                if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+                  test_factor(P[i],(kpos >> mpos),n+mpos,+1);
+              }
+              if ((bitsk & 0x8000)) {
+                uint64_t kpos;
+                unsigned int mpos;
+                kpos = P[i+1]-K[i+1];
+                mpos = __builtin_ctzll(kpos);
+
+                if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+                  test_factor(P[i+1],(kpos >> mpos),n+mpos,+1);
+              }
+            }
           }
-        }*/
-#endif
-      } while (n > nmin);
-      else
-#endif
-      do /* Remaining steps are all of equal size nstep */
+#else
+          for(i=0; i < APP_BUFLEN; i+=2) {
+            __m128i mk, nk;
+            unsigned int bitsk;
+            // This limits the range to kmax < P, and kmax < 2^32
+            mk = _mm_load_si128((__m128i*)(&K[i]));
+            // 1. Find the LSB of K with (K & -K)
+            nk = _mm_xor_si128(nk, nk);
+            nk = _mm_sub_epi32(nk, mk);   // Can be 32-bit since just looking for 1's in that area.
+            nk = _mm_and_si128(nk, mk);
+            //4. Add kmax+1 (or in this case sub it from the original K.)
+            mk = _mm_sub_epi64(mk, mkmax);	// No longer using original mk, so fix it here.
+            //2. Subtract 1 so it's all 1's below the number in the worst case.
+            //   Might as well be 32-bit, since mul is 32-bit, and 0-1 = all 1's. 
+            nk = _mm_sub_epi32(nk, mones);
+            //3. Multiply kmax+1 by (unsigned int)that LSB
+            nk = _mm_mul_epu32(nk, mkmax);
+            //5. Compare the values: sub and get high bits.
+            mk = _mm_sub_epi64(mk, nk);
+            bitsk = _mm_movemask_epi8(mk);
+            if ((bitsk & 0x80)) {
+              uint64_t kpos;
+              unsigned int mpos;
+              kpos = K[i];
+              mpos = __builtin_ctzll(kpos);
+              kpos >>= mpos;
+
+              if (kpos <= kmax && kpos >= kmin && mpos < nstep)
+                test_factor(P[i],kpos,n+mpos,addsign);
+            }
+            if ((bitsk & 0x8000)) {
+              uint64_t kpos;
+              unsigned int mpos;
+              kpos = K[i+1];
+              mpos = __builtin_ctzll(kpos);
+              kpos >>= mpos;
+
+              if (kpos <= kmax && kpos >= kmin && mpos < nstep)
+                test_factor(P[i+1],kpos,n+mpos,addsign);
+            }
+          }
+#endif  // SEARCH_TWIN
+#endif  // __x86_64__
+        } while (n > nmin);
+      } else
+#endif // EMM
       {
-        n -= nstep;
+        // Standard algorithm here:
+        //if(debugflag) printf("DEBUG: Using standard algorithm.\n");
+        do /* Remaining steps are all of equal size nstep */
+        {
+          n -= nstep;
 
-        /* K[i] <-- K[i]*2^{nstep} mod P[i] */
+          /* K[i] <-- K[i]*2^{nstep} mod P[i] */
 
-        asm ("fildll %1\n\t"
-             "fmul %%st(1)\n\t"
-             "fistpll %0"
-             : "=m" (T[0]) : "m" (K[0]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(1)\n\t"
+              "fistpll %0"
+              : "=m" (T[0]) : "m" (K[0]) );
 
 #if (APP_BUFLEN >= 2)
-        asm ("fildll %1\n\t"
-             "fmul %%st(2)\n\t"
-             "fistpll %0"
-             : "=m" (T[1]) : "m" (K[1]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(2)\n\t"
+              "fistpll %0"
+              : "=m" (T[1]) : "m" (K[1]) );
 #endif
 #if (APP_BUFLEN >= 3)
-        asm ("fildll %1\n\t"
-             "fmul %%st(3)\n\t"
-             "fistpll %0"
-             : "=m" (T[2]) : "m" (K[2]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(3)\n\t"
+              "fistpll %0"
+              : "=m" (T[2]) : "m" (K[2]) );
 #endif
 #if (APP_BUFLEN >= 4)
-        asm ("fildll %1\n\t"
-             "fmul %%st(4)\n\t"
-             "fistpll %0"
-             : "=m" (T[3]) : "m" (K[3]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(4)\n\t"
+              "fistpll %0"
+              : "=m" (T[3]) : "m" (K[3]) );
 #endif
 #if (APP_BUFLEN >= 5)
-        asm ("fildll %1\n\t"
-             "fmul %%st(5)\n\t"
-             "fistpll %0"
-             : "=m" (T[4]) : "m" (K[4]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(5)\n\t"
+              "fistpll %0"
+              : "=m" (T[4]) : "m" (K[4]) );
 #endif
 #if (APP_BUFLEN >= 6)
-        asm ("fildll %1\n\t"
-             "fmul %%st(6)\n\t"
-             "fistpll %0"
-             : "=m" (T[5]) : "m" (K[5]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(6)\n\t"
+              "fistpll %0"
+              : "=m" (T[5]) : "m" (K[5]) );
 #endif
 #if (APP_BUFLEN >= 7)
-        for (i = 6; i < APP_BUFLEN; i++)
-          asm ("fldt %2\n\t"
-               "fildll %1\n\t"
-               "fmulp\n\t"
-               "fistpll %0"
-               : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
+          for (i = 6; i < APP_BUFLEN; i++)
+            asm ("fldt %2\n\t"
+                "fildll %1\n\t"
+                "fmulp\n\t"
+                "fistpll %0"
+                : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
 #endif
 
 #if defined(__x86_64__) || !defined(EMM)
-        for (i = 0; i < APP_BUFLEN; i++)
-          if (__builtin_expect(((K[i] = (K[i]<<nstep) - T[i]*P[i]) >= P[i]),0))
-            K[i] -= P[i];
+          for (i = 0; i < APP_BUFLEN; i++)
+            if (__builtin_expect(((K[i] = (K[i]<<nstep) - T[i]*P[i]) >= P[i]),0))
+              K[i] -= P[i];
 #else  // SSE2 version:
-        for (i = 0; i < APP_BUFLEN; i+=2) {
-          register __m128i mk, mp, mt, mtemp, mtemp2;
-          mp = _mm_load_si128((__m128i*)(&P[i]));
-          mt = _mm_load_si128((__m128i*)(&T[i]));
-          mk = _mm_load_si128((__m128i*)(&K[i])); // Slip this in the latency.
-          mtemp = _mm_srli_epi64(mp, 32);
-          mtemp2 = _mm_srli_epi64(mt, 32);
-          mtemp = _mm_mul_epu32(mtemp, mt);
-          mtemp2 = _mm_mul_epu32(mtemp2, mp);
-          mk = _mm_sll_epi64(mk, mnstep); // Slip this in on another port.
-          mt = _mm_mul_epu32(mt, mp);
-          mtemp = _mm_add_epi32(mtemp, mtemp2); // Just need the low doublewords.
-          mtemp = _mm_slli_epi64(mtemp, 32); // Move result to other column (high doublewords).
-          mt = _mm_add_epi32(mt, mtemp);  // Add the results; only need high doublewords.
-          mk = _mm_sub_epi64(mk, mt);
-          // In case of (n & x), do the divide by two here; This is not that case.
-          _mm_store_si128((__m128i*)(&K[i]), mk);
-          mk = _mm_sub_epi64(mk, mp);     // Negative iff K[i] < P[i]
-          unsigned int bits = _mm_movemask_epi8(mk);
-          if((bits & 0x80) == 0) K[i] -= P[i];
-          if((bits & 0x8000) == 0) K[i+1] -= P[i+1];
-        }
+          for (i = 0; i < APP_BUFLEN; i+=2) {
+            register __m128i mk, mp, mt, mtemp, mtemp2;
+            mp = _mm_load_si128((__m128i*)(&P[i]));
+            mt = _mm_load_si128((__m128i*)(&T[i]));
+            mk = _mm_load_si128((__m128i*)(&K[i])); // Slip this in the latency.
+            mtemp = _mm_srli_epi64(mp, 32);
+            mtemp2 = _mm_srli_epi64(mt, 32);
+            mtemp = _mm_mul_epu32(mtemp, mt);
+            mtemp2 = _mm_mul_epu32(mtemp2, mp);
+            mk = _mm_sll_epi64(mk, mnstep); // Slip this in on another port.
+            mt = _mm_mul_epu32(mt, mp);
+            mtemp = _mm_add_epi32(mtemp, mtemp2); // Just need the low doublewords.
+            mtemp = _mm_slli_epi64(mtemp, 32); // Move result to other column (high doublewords).
+            mt = _mm_add_epi32(mt, mtemp);  // Add the results; only need high doublewords.
+            mk = _mm_sub_epi64(mk, mt);
+            // In case of (n & x), do the divide by two here; This is not that case.
+            _mm_store_si128((__m128i*)(&K[i]), mk);
+            mk = _mm_sub_epi64(mk, mp);     // Negative iff K[i] < P[i]
+            unsigned int bits = _mm_movemask_epi8(mk);
+            if((bits & 0x80) == 0) K[i] -= P[i];
+            if((bits & 0x8000) == 0) K[i+1] -= P[i+1];
+          }
 #endif
 
 #ifdef __x86_64__
-                /* K[i] <-- K[i]*2^{nstep} mod P[i] */
+          /* K[i] <-- K[i]*2^{nstep} mod P[i] */
 
-        asm ("fildll %1\n\t"
-             "fmul %%st(1)\n\t"
-             "fistpll %0"
-             : "=m" (T[0]) : "m" (K[0]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(1)\n\t"
+              "fistpll %0"
+              : "=m" (T[0]) : "m" (K[0]) );
 
 #if (APP_BUFLEN >= 2)
-        asm ("fildll %1\n\t"
-             "fmul %%st(2)\n\t"
-             "fistpll %0"
-             : "=m" (T[1]) : "m" (K[1]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(2)\n\t"
+              "fistpll %0"
+              : "=m" (T[1]) : "m" (K[1]) );
 #endif
 #if (APP_BUFLEN >= 3)
-        asm ("fildll %1\n\t"
-             "fmul %%st(3)\n\t"
-             "fistpll %0"
-             : "=m" (T[2]) : "m" (K[2]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(3)\n\t"
+              "fistpll %0"
+              : "=m" (T[2]) : "m" (K[2]) );
 #endif
 #if (APP_BUFLEN >= 4)
-        asm ("fildll %1\n\t"
-             "fmul %%st(4)\n\t"
-             "fistpll %0"
-             : "=m" (T[3]) : "m" (K[3]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(4)\n\t"
+              "fistpll %0"
+              : "=m" (T[3]) : "m" (K[3]) );
 #endif
 #if (APP_BUFLEN >= 5)
-        asm ("fildll %1\n\t"
-             "fmul %%st(5)\n\t"
-             "fistpll %0"
-             : "=m" (T[4]) : "m" (K[4]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(5)\n\t"
+              "fistpll %0"
+              : "=m" (T[4]) : "m" (K[4]) );
 #endif
 #if (APP_BUFLEN >= 6)
-        asm ("fildll %1\n\t"
-             "fmul %%st(6)\n\t"
-             "fistpll %0"
-             : "=m" (T[5]) : "m" (K[5]) );
+          asm ("fildll %1\n\t"
+              "fmul %%st(6)\n\t"
+              "fistpll %0"
+              : "=m" (T[5]) : "m" (K[5]) );
 #endif
 #if (APP_BUFLEN >= 7)
-        for (i = 6; i < APP_BUFLEN; i++)
-          asm ("fldt %2\n\t"
-               "fildll %1\n\t"
-               "fmulp\n\t"
-               "fistpll %0"
-               : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
+          for (i = 6; i < APP_BUFLEN; i++)
+            asm ("fldt %2\n\t"
+                "fildll %1\n\t"
+                "fmulp\n\t"
+                "fistpll %0"
+                : "=m" (T[i]) : "m" (K[i]), "m" (INV[i-6]) );
 #endif
 
-        for (i = 0; i < APP_BUFLEN; i++) {
-          uint64_t kpos;
-          unsigned int mpos;
-          kpos = K[i];
-          mpos = __builtin_ctzll(kpos);
-          if (__builtin_expect(((K[i+APP_BUFLEN] = (kpos<<nstep) - T[i]*P[i]) >= P[i]),0))
-            K[i+APP_BUFLEN] -= P[i];
+          for (i = 0; i < APP_BUFLEN; i++) {
+            uint64_t kpos = K[i];
+            unsigned int mpos;
+#ifdef SEARCH_TWIN
+            uint64_t ppos = P[i];
+            //if(ppos == 710001064441429ull)
+              //printf("n=%u starting with k=%lu at p = %lu\n", n, kpos, ppos);
+#endif
+            if (__builtin_expect(((K[i+APP_BUFLEN] = (kpos<<nstep) - T[i]*P[i]) >= P[i]),0))
+              K[i+APP_BUFLEN] -= P[i];
 
-          kpos >>= mpos;
-          if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i],kpos,n+mpos,addsign);
-        }
-        n -= nstep;
-
-        for (; i < APP_BUFLEN*2; i++) {
-          uint64_t kpos;
-          unsigned int mpos;
-
-          kpos = K[i];
-          K[i-APP_BUFLEN] = kpos;
-
-          mpos = __builtin_ctzll(kpos);
-          kpos >>= mpos;
-          if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i-APP_BUFLEN],kpos,n+mpos,addsign);
-        }
+#ifdef SEARCH_TWIN
+            // Test the even one.
+            kpos = ((kpos)&1)?(ppos-kpos):kpos;
+#endif
+            mpos = __builtin_ctzll(kpos);
+            //kpos >>= mpos;
+            if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+#ifndef SEARCH_TWIN
+              test_factor(P[i],(kpos >> mpos),n+mpos,addsign);
 #else
-// A macro of what would go in a loop but for the unique IDs needed:
-#define TESTKPK(NUM,NUMID) \
+              test_factor(P[i],(kpos >> mpos),n+mpos,(kpos == K[i])?-1:1);
+
+            // Test the odd one, without a shift.
+            kpos = ppos - kpos;
+            if (kpos <= kmax && kpos >= kmin)
+              test_factor(P[i],kpos,n,(kpos == K[i])?-1:1);
+#endif
+          }
+          n -= nstep;
+
+          for (; i < APP_BUFLEN*2; i++) {
+            uint64_t kpos;
+            unsigned int mpos;
+#ifdef SEARCH_TWIN
+            uint64_t ppos = P[i-APP_BUFLEN];
+#endif
+
+            kpos = K[i];
+            K[i-APP_BUFLEN] = kpos;
+
+#ifdef SEARCH_TWIN
+            // Test the even one.
+            kpos = ((kpos)&1)?(ppos-kpos):kpos;
+#endif
+            mpos = __builtin_ctzll(kpos);
+            //kpos >>= mpos;
+            if ((kpos>>mpos) <= kmax && (kpos>>mpos) >= kmin && mpos < nstep)
+#ifndef SEARCH_TWIN
+              test_factor(P[i-APP_BUFLEN],(kpos >> mpos),n+mpos,addsign);
+#else
+            test_factor(P[i-APP_BUFLEN],(kpos >> mpos),n+mpos,(kpos == K[i])?-1:1);
+
+            // Test the odd one, without a shift.
+            kpos = ppos - kpos;
+            if (kpos <= kmax && kpos >= kmin)
+              test_factor(P[i-APP_BUFLEN],kpos,n,(kpos == K[i])?-1:1);
+#endif
+          }
+#else
+          // A macro of what would go in a loop but for the unique IDs needed:
+#ifndef SEARCH_TWIN
+          // Standard search.
+#define TESTKPK(NUM) \
           kpos = K[NUM]; \
-          BSFQ(mpos, kpos, NUMID"K"); \
+          BSFQ(mpos, kpos, #NUM"K"); \
           kpos >>= mpos; \
           if (kpos <= kmax && kpos >= kmin && mpos < nstep) \
-            test_factor(P[NUM],kpos,n+mpos,addsign)
+          test_factor(P[NUM],kpos,n+mpos,addsign)
+#else
+          // Twin search.  First test the even case, then the odd case.
+#define TESTKPK(NUM) \
+          kpos = (((unsigned int)K[NUM])&1)?(P[NUM]-K[NUM]):K[NUM]; \
+          BSFQ(mpos, kpos, #NUM"K"); \
+          if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep) \
+          test_factor(P[NUM],(kpos >> mpos),n+mpos,(kpos == K[NUM])?-1:1); \
+          kpos = P[NUM] - kpos; \
+          if (kpos <= kmax && kpos >= kmin) \
+          test_factor(P[NUM],kpos,n,(kpos == K[NUM])?-1:1);
+#endif
 
-        {
-          uint64_t kpos;
-          unsigned int mpos;
+          {
+            uint64_t kpos;
+            unsigned int mpos;
 
-          TESTKPK(0, "0");
-          TESTKPK(1, "1");
+            TESTKPK(0);
+            TESTKPK(1);
 #if (APP_BUFLEN > 2)
-          TESTKPK(2, "2");
-          TESTKPK(3, "3");
+            TESTKPK(2);
+            TESTKPK(3);
 #if (APP_BUFLEN > 4)
-          TESTKPK(4, "4");
-          TESTKPK(5, "5");
+            TESTKPK(4);
+            TESTKPK(5);
 #if (APP_BUFLEN > 6)
-        }
-        for (i = 6; i < APP_BUFLEN; i++) {
-          uint64_t kpos;
-          unsigned int mpos;
-
-          // Test P-K
-          kpos = PMINUSK(i);
-          mpos = __builtin_ctzll(kpos);
-          kpos >>= mpos;
-
-          if (kpos <= kmax && kpos >= kmin && mpos < nstep)
-            test_factor(P[i],kpos,n+mpos,addsign);
-#endif
-#endif
-        }
-#endif
+            for (i = 6; i < APP_BUFLEN; i++) {
+#ifdef SEARCH_TWIN
+              kpos = (((unsigned int)K[i])&1)?(P[i]-K[i]):K[i]; \
+#else
+                     kpos = K[i];
 #endif
 
-      } while (n > nmin);
+              mpos = __builtin_ctzll(kpos);
+
+              if ((kpos >> mpos) <= kmax && (kpos >> mpos) >= kmin && mpos < nstep)
+#ifndef SEARCH_TWIN
+                test_factor(P[i],(kpos >> mpos),n+mpos,addsign);
+#else
+              test_factor(P[i],(kpos >> mpos),n+mpos,(kpos == K[i])?-1:1);
+
+              // Test the odd one, without a shift.
+              kpos = P[i] - kpos;
+              if (kpos <= kmax && kpos >= kmin)
+                test_factor(P[i],kpos,n,(kpos == K[i])?-1:1);
+#endif
+            }
+#endif
+#endif
+#endif
+          }
+#endif
+
+        } while (n > nmin);
+      }
     }
   }
 

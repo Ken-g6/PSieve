@@ -31,10 +31,10 @@
 #include <process.h>
 //#endif
 #else
-#ifndef USE_BOINC
+//#ifndef USE_BOINC
 #include <pthread.h>
 #include <semaphore.h>
-#endif
+//#endif
 #include <unistd.h>
 #include <sys/resource.h>
 #include <sys/time.h>
@@ -121,7 +121,7 @@ static thread_data_t thread_data[MAX_THREADS];
 
 /* Thread shared variables
 */
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
 static HANDLE checkpoint_semaphoreA;
 static HANDLE checkpoint_semaphoreB;
@@ -369,7 +369,7 @@ static uint64_t read_checkpoint(void)
 }
 
 
-#ifdef USE_BOINC
+#ifdef SINGLE_THREAD
 static const char *short_opts = "p:P:Q:B:C:c:r:z:hq" APP_SHORT_OPTS;
 #else
 static const char *short_opts = "p:P:Q:B:C:c:r:t:z:hq" APP_SHORT_OPTS;
@@ -384,7 +384,7 @@ static const struct option long_opts[] = {
   {"blocks",      required_argument, 0, 256},
   {"checkpoint",  required_argument, 0, 'c'},
   {"report",      required_argument, 0, 'r'},
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
   {"nthreads",    required_argument, 0, 't'},
 #endif
   {"priority",    required_argument, 0, 'z'},
@@ -409,7 +409,7 @@ static void help(void)
   printf("-q --quiet         Don't print factors to screen\n");
   printf("-r --report=N      Report status every N seconds (default N=%d)\n",
       REPORT_OPT_DEFAULT);
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
   printf("-t --nthreads=N    Start N child threads (default N=1)\n");
 #endif
   printf("-z --priority=N    Set process priority to nice N or {idle,low,normal}\n");
@@ -457,7 +457,7 @@ static int parse_option(int opt, char *arg, const char *source)
       status = parse_uint(&report_opt,arg,0,UINT32_MAX);
       break;
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
     case 't':
       status = parse_uint(&num_threads,arg,1,MAX_THREADS);
       break;
@@ -647,7 +647,7 @@ static int read_config_file(const char *fn)
 }
 
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifndef _WIN32
 /* Child thread cleanup handler signals parent before child thread exits.
    This is needed because the pthreads API lacks the equivalent of a select
@@ -676,13 +676,13 @@ static void *thread_fun(void *arg)
   uint64_t P[APP_BUFLEN] __attribute__ ((aligned(16)));
   unsigned int plen, len;
   unsigned long *buf;
-#ifdef USE_BOINC
+#ifdef SINGLE_THREAD
   uint64_t progress;
 #endif
 
   assert(((unsigned int)&P & 15) == 0); /* check stack alignment */
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   if (priority_opt)
   {
@@ -749,7 +749,7 @@ static void *thread_fun(void *arg)
     free_chunk(sv,p0);
 #endif
 
-#ifdef USE_BOINC
+#ifdef SINGLE_THREAD
     /* Without threads, report status at the end of every chunk. */
     progress = next_chunk(sv);
     report_status(0,0,0,progress);
@@ -764,7 +764,7 @@ static void *thread_fun(void *arg)
 #ifdef TRACE
       printf("Thread %d: Synchronising for checkpoint\n",th);
 #endif
-#ifdef USE_BOINC
+#ifdef SINGLE_THREAD
       /* Without threads, write a checkpoint whenever done with a chunk and BOINC is ready. */
       write_checkpoint(progress);
       last_checkpoint_progress = progress;
@@ -796,7 +796,7 @@ static void *thread_fun(void *arg)
 
   /* Just in case a checkpoint is signalled before other threads exit */
   no_more_checkpoints = 1;
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   ReleaseSemaphore(checkpoint_semaphoreA,1,NULL);
 #else
@@ -811,7 +811,7 @@ static void *thread_fun(void *arg)
   return 0;
 }
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
 static unsigned int __stdcall thread_fun_wrapper(void *arg)
 {
@@ -838,7 +838,7 @@ static unsigned int __stdcall thread_fun_wrapper(void *arg)
 
 int main(int argc, char *argv[])
 {
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   HANDLE tid[MAX_THREADS];
   DWORD thread_ret;
@@ -928,7 +928,7 @@ int main(int argc, char *argv[])
 
   init_signals();
 
-#ifndef USE_BOINC
+#ifndef SINGLE_THREAD
 #ifdef _WIN32
   checkpoint_semaphoreA = CreateSemaphore(NULL,0,2147483647,NULL);
   checkpoint_semaphoreB = CreateSemaphore(NULL,0,2147483647,NULL);
@@ -945,7 +945,7 @@ int main(int argc, char *argv[])
   sieve_start_processor_time = processor_usec();
 
   /* Start child threads */
-#ifdef USE_BOINC
+#ifdef SINGLE_THREAD
   single_thread = 1;
   last_checkpoint_time = sieve_start_time;
   last_checkpoint_progress = pstart;
