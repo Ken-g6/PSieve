@@ -73,6 +73,8 @@ static unsigned int factor_count = 0;
 static int file_format = FORMAT_ABCD;
 static int print_factors = 1;
 static int addsign = 1;
+static unsigned int kstep = KSTEP;
+static unsigned int koffset = KOFFSET;
 
 #ifdef __x86_64__
 // Montgomery constants:
@@ -161,9 +163,9 @@ static const int prime15[] = { 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1 };
 
 void test_factor(uint64_t p, uint64_t k, unsigned int n, int c)
 {
-  uint64_t b = k/KSTEP;
+  uint64_t b = k/kstep;
 
-  if((k == KSTEP*b+KOFFSET) && n >= nmin && n < nmax && k >= kmin) { // k is odd.
+  if((k == kstep*b+koffset) && n >= nmin && n < nmax && k >= kmin) { // k is odd.
     if (bitmap == NULL) {
       unsigned int khigh = (unsigned int)(k>>32);
       uint64_t mod31 = (uint64_t)1;
@@ -331,8 +333,8 @@ static FILE* scan_input_file(const char *fn)
 #ifdef SEARCH_TWIN
   if (file_format == FORMAT_ABCD)
   {
-    k0 = KSTEP*k0+KOFFSET;
-    k1 = KSTEP*k1+KOFFSET;
+    k0 = kstep*k0+koffset;
+    k1 = kstep*k1+koffset;
   }
 #endif
   printf("Found K's from %"SCNu64" to %"SCNu64".\n", k0, k1);
@@ -387,14 +389,14 @@ static void read_newpgen_file(const char *fn, FILE* file)
   while (fscanf(file," %"SCNu64" %u",&k,&n) == 2)
   {
     line++;
-    if ((k%KSTEP) != KOFFSET)
+    if ((k%kstep) != koffset)
     {
       fprintf(stderr,"%sInvalid line %u in input file `%s'\n",bmprefix(),line,fn);
       bexit(ERR_SCANF);
     }
     if (k >= kmin && k <= kmax && n >= nmin && n <= nmax)
     {
-      uint64_t bit = k/KSTEP-b0;
+      uint64_t bit = k/kstep-b0;
       bitmap[n-nmin][(unsigned int)(bit/8)] |= (1 << bit%8);
       count++; /* TODO: Don't count duplicates */
     }
@@ -450,7 +452,7 @@ static void read_abcd_file(const char *fn, FILE *file)
 #ifdef SEARCH_TWIN
     uint64_t bit = k-b0;
 #else
-    uint64_t bit = (k-kmin)/KSTEP;
+    uint64_t bit = (k-kmin)/kstep;
 #endif
     unsigned int bo8 = (unsigned int)(bit/8);
     unsigned int bm8 = (unsigned int)(1 << bit%8);
@@ -581,12 +583,23 @@ int app_parse_option(int opt, char *arg, const char *source)
       factors_filename = (source == NULL)? arg : xstrdup(arg);
       break;
 
-    case 's':
+    //case 's':   Deprecated; now removed.
     case 'a':
       if(arg[0] == 'y' || arg[0] == 'Y') use_sse2 = 1;
       else if(arg[0] == 'n' || arg[0] == 'N') use_sse2 = 0;
       break;
       
+    case 'M':
+      // Change K's modulus.
+      status = parse_uint(&kstep,arg,1,(1U<<31)-1);
+      if(koffset >= kstep) koffset = kstep/2;
+      break;
+
+    case 's':
+      // Change K's modoffset.
+      status = parse_uint(&koffset,arg,1,(1U<<31)-1);
+      break;
+
 #ifndef SEARCH_TWIN
     case 'R':
       addsign = -1;
@@ -602,17 +615,20 @@ int app_parse_option(int opt, char *arg, const char *source)
 
 void app_help(void)
 {
+  printf("-a --alt=yes|no    Force setting of alt. algorithm (64-bit/SSE2)\n");
+  printf("-f --factors=FILE  Write factors to FILE (default `%s')\n",
+      FACTORS_FILENAME_DEFAULT);
+  printf("-i --input=FILE    Read initial sieve from FILE\n");
+  printf("-M --modulus       (Default %u\n", KSTEP);
+  printf("-s --modshift      Print only k's == s mod M. Default %u, or M/2\n",
+      KOFFSET);
   printf("-k --kmin=K0\n");
   printf("-K --kmax=K1       Sieve for primes k*2^n+/-1 with K0 <= k <= K1\n");
   printf("-n --nmin=N0\n");
   printf("-N --nmax=N1       Sieve for primes k*2^n+/-1 with N0 <= n <= N1\n");
-  printf("-i --input=FILE    Read initial sieve from FILE\n");
-  printf("-f --factors=FILE  Write factors to FILE (default `%s')\n",
-         FACTORS_FILENAME_DEFAULT);
 #ifndef SEARCH_TWIN
   printf("-R --riesel        Test Riesel numbers instead of Proth numbers.\n");
 #endif
-  printf("-a --alt=yes|no    Force setting of alt. algorithm (64-bit/SSE2)\n");
 }
 
 // find the log base 2 of a number.  Need not be fast; only done twice.
@@ -681,10 +697,10 @@ void app_init(void)
     bexit(EXIT_FAILURE);
   }
 
-  b0 = kmin/KSTEP;
-  b1 = kmax/KSTEP;
-  kmin = b0*KSTEP+KOFFSET;
-  kmax = b1*KSTEP+KOFFSET;
+  b0 = kmin/kstep;
+  b1 = kmax/kstep;
+  kmin = b0*kstep+koffset;
+  kmax = b1*kstep+koffset;
 
   has_sse2 = check_sse2();
   xkmax[0] = kmax+1;

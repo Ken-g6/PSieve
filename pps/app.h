@@ -37,17 +37,18 @@
 
 #define FACTORS_FILENAME_DEFAULT APP_PREFIX"factors.txt"
 
-#define APP_SHORT_OPTS "k:K:n:N:i:f:Ra:s:"
+#define APP_SHORT_OPTS "k:K:M:n:N:i:f:Ra:s:"
 #define APP_LONG_OPTS \
   {"kmin",          required_argument, 0, 'k'}, \
   {"kmax",          required_argument, 0, 'K'}, \
+  {"modulus",       required_argument, 0, 'M'}, \
+  {"modshift",      required_argument, 0, 's'}, \
   {"nmin",          required_argument, 0, 'n'}, \
   {"nmax",          required_argument, 0, 'N'}, \
   {"input",         required_argument, 0, 'i'}, \
   {"factors",       required_argument, 0, 'f'}, \
   {"riesel",        no_argument,       0, 'R'}, \
-  {"alt",           required_argument, 0, 'a'}, \
-  {"sse2",          required_argument, 0, 's'},
+  {"alt",           required_argument, 0, 'a'},
 
 #ifdef USE_BOINC
 #include <error_numbers.h>

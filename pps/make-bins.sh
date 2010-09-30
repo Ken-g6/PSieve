@@ -8,6 +8,12 @@ BOINC_DIR=/downloads/distributed/boinc610/server_stable
 #BOINC_DIR=../../ppsb/boinc
 BOINC_API_DIR=$BOINC_DIR/api
 BOINC_LIB_DIR=$BOINC_DIR/lib
+OSNAME=`uname -o`
+if [ "$OSNAME" == "GNU/Linux" ] ; then
+	OSNAME=linux
+else
+	OSNAME=windows.exe
+fi
 arch=`uname -m`
 if [ "$BOINC_DIR" != "" ] ; then
 	BOINC_LOAD_LIBS="-I$BOINC_DIR -I$BOINC_LIB_DIR -I$BOINC_API_DIR -L$BOINC_DIR -L$BOINC_LIB_DIR -L$BOINC_API_DIR"
@@ -43,15 +49,15 @@ fi
 
 if [ "$1" != "boinc" ] ; then
 	echo Making i686 non-BOINC version.
-	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-x86-$OSNAME ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lm -lpthread
 	echo Making i686 non-BOINC TPS.
-	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $tpsappname-x86-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c tps_thread_fun_sse2.o tps_thread_fun_nosse2.o -lm -lpthread
-	#gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m32 -march=i686 -mtune=core2 -msse2 -I. -I.. -o $appname-x86-linux-sse2 ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m32 -march=i586 -mtune=k8 -I. -I.. -o $tpsappname-x86-$OSNAME ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c tps_thread_fun_sse2.o tps_thread_fun_nosse2.o -lm -lpthread
 else
 	if [ "$arch" == "i686" ] ; then
 		echo Making i686 BOINC version.
-		gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-boinc-x86-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
-		#gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -DSEARCH_TWIN -I. -I.. -o $tpsappname-boinc-x86-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
+		gcc $cleanvars -Wall -O3 -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -I. -I.. -o $appname-boinc-x86-$OSNAME $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun_sse2.o app_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
+		echo Making i686 BOINC TPS.
+		gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DUSE_BOINC -DNDEBUG -D_REENTRANT -DAPP_GRAPHICS -m32 -march=i586 -mtune=k8 -I. -I.. -o $tpsappname-boinc-x86-$OSNAME $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c tps_thread_fun_sse2.o tps_thread_fun_nosse2.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
 	fi
 fi
 if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi
@@ -84,12 +90,13 @@ else
 fi
 if [ "$1" != "boinc" ] ; then
 	echo Making x86_64 non-BOINC version.
-	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun-x86_64.o -lm -lpthread
-	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $tpsappname-x86_64-linux ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun.c -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-x86_64-$OSNAME ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun-x86_64.o -lm -lpthread
+	gcc -Wall -O3 $cleanvars -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $tpsappname-x86_64-$OSNAME ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun.c -lm -lpthread
 else
 	if [ "$arch" == "x86_64" ] ; then
 		echo Making x86_64 BOINC version.
-		gcc $cleanvars -Wall -O3 -DNDEBUG -D_REENTRANT -DUSE_BOINC -DAPP_GRAPHICS -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-boinc-x86_64-linux $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun-x86_64.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
+		gcc $cleanvars -Wall -O3 -DNDEBUG -D_REENTRANT -DUSE_BOINC -DAPP_GRAPHICS -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $appname-boinc-x86_64-$OSNAME $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c app_thread_fun-x86_64.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
+		gcc $cleanvars -Wall -O3 -DSEARCH_TWIN -DNDEBUG -D_REENTRANT -DUSE_BOINC -DAPP_GRAPHICS -m64 -march=k8 -mno-3dnow -mtune=core2 -I. -I.. -o $tpsappname-boinc-x86_64-$OSNAME $BOINC_LOAD_LIBS ../main.c ../sieve.c ../clock.c ../putil.c app.c factor_proth.c tps_thread_fun-x86_64.o -lboinc_api -lboinc `g++ -print-file-name=libstdc++.a` -lm -lpthread
 	fi
 fi
 if [ "$kernel" != "" ] ; then unset LD_ASSUME_KERNEL ; fi

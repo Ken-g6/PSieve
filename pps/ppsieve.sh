@@ -13,11 +13,7 @@ if [ "$MACHINE_TYPE" == "x86_64" ]; then
     ALT="-a yes"
   fi
 else
-  if grep '^flags' /proc/cpuinfo | grep sse2 > /dev/null ; then
-    APP=ppsieve-x86-linux-sse2
-  else
-    APP=ppsieve-x86-linux
-  fi
+  APP=ppsieve-x86-linux
 fi
 
 if [ "$PMIN" = "##G" -o "$PMAX" = "##G" ] ; then
