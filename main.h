@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #ifdef USE_BOINC
-#ifndef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 #define SINGLE_THREAD
 #endif
 #endif
